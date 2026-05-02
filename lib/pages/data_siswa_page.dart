@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import '../models/siswa.dart';
+import '../services/student_service.dart';
 
 class DataSiswaPage extends StatefulWidget {
   const DataSiswaPage({super.key});
@@ -9,36 +11,27 @@ class DataSiswaPage extends StatefulWidget {
 
 class _DataSiswaPageState extends State<DataSiswaPage> {
   String _searchQuery = "";
+  final StudentService _studentService = StudentService();
 
-  final List<Map<String, String>> _siswaList = [
-    {"nama": "M. Zidan Al-Fatih", "nisn": "009822314", "kelas": "X-A", "ttl": "Bandung, 15 Januari 2008", "alamat": "Jl. Merdeka No. 10", "namaOrtu": "Ahmad Susanto"},
-    {"nama": "Aisyah Putri", "nisn": "009822315", "kelas": "X-A", "ttl": "Jakarta, 20 Februari 2008", "alamat": "Jl. Sudirman No. 25", "namaOrtu": "Budi Santoso"},
-    {"nama": "Ahmad Fauzan", "nisn": "009822316", "kelas": "X-B", "ttl": "Surabaya, 10 Maret 2008", "alamat": "Jl. Asia Afrika No. 5", "namaOrtu": "Hendra Wijaya"},
-    {"nama": "Fatimah Az-Zahra", "nisn": "009822317", "kelas": "XI-A", "ttl": "Medan, 5 April 2007", "alamat": "Jl. Gatot Subroto No. 15", "namaOrtu": "Rahmat Hidayat"},
-    {"nama": "Umar Bin Khattab", "nisn": "009822318", "kelas": "XI-B", "ttl": "Makassar, 12 Mei 2007", "alamat": "Jl. Pettarani No. 30", "namaOrtu": "Andi Pratama"},
-    {"nama": "Khadijah Al-Kubra", "nisn": "009822319", "kelas": "XII-A", "ttl": "Bandung, 8 Juni 2006", "alamat": "Jl. Dago No. 45", "namaOrtu": "Dedi Kurniawan"},
-    {"nama": "Ali Bin Abi Thalib", "nisn": "009822320", "kelas": "XII-B", "ttl": "Semarang, 25 Juli 2006", "alamat": "Jl. Ahmad Yani No. 60", "namaOrtu": "Fajar Nugraha"},
-    {"nama": "Zainab Binti Ali", "nisn": "009822321", "kelas": "X-A", "ttl": "Yogyakarta, 14 Agustus 2008", "alamat": "Jl. Malioboro No. 20", "namaOrtu": "Galih Permana"},
-    {"nama": "Bilal Bin Rabah", "nisn": "009822322", "kelas": "X-B", "ttl": "Denpasar, 30 September 2008", "alamat": "Jl. Ngurah Rai No. 8", "namaOrtu": "Made Surya"},
-    {"nama": "Sumayyah Binti Khayyat", "nisn": "009822323", "kelas": "XI-A", "ttl": "Padang, 22 Oktober 2007", "alamat": "Jl. Pasar Baru No. 12", "namaOrtu": "Wendra Osman"},
-  ];
+  List<Siswa> get _siswaList => _studentService.getAllSiswa();
 
-  List<Map<String, String>> get _filteredSiswa {
+  List<Siswa> get _filteredSiswa {
     if (_searchQuery.isEmpty) return _siswaList;
+    final lowerQuery = _searchQuery.toLowerCase();
     return _siswaList.where((s) =>
-      s["nama"]!.toLowerCase().contains(_searchQuery.toLowerCase()) ||
-      s["nisn"]!.toLowerCase().contains(_searchQuery.toLowerCase()) ||
-      s["kelas"]!.toLowerCase().contains(_searchQuery.toLowerCase())
+      s.nama.toLowerCase().contains(lowerQuery) ||
+      s.nisn.toLowerCase().contains(lowerQuery) ||
+      s.kelas.toLowerCase().contains(lowerQuery)
     ).toList();
   }
 
-  void _showDetailSiswa(BuildContext context, Map<String, String> siswa) {
+  void _showDetailSiswa(BuildContext context, Siswa siswa) {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (context) => Container(
-        height: MediaQuery.of(context).size.height * 0.7,
+        height: MediaQuery.of(context).size.height * 0.85,
         decoration: const BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
@@ -59,7 +52,7 @@ class _DataSiswaPageState extends State<DataSiswaPage> {
               radius: 50,
               backgroundColor: const Color(0xFF10B981).withOpacity(0.1),
               child: Text(
-                siswa["nama"]![0],
+                siswa.nama[0],
                 style: const TextStyle(
                   fontSize: 36,
                   color: Color(0xFF10B981),
@@ -69,12 +62,12 @@ class _DataSiswaPageState extends State<DataSiswaPage> {
             ),
             const SizedBox(height: 16),
             Text(
-              siswa["nama"]!,
+              siswa.nama,
               style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 4),
             Text(
-              "Kelas ${siswa["kelas"]}",
+              "Kelas ${siswa.kelas}",
               style: TextStyle(fontSize: 16, color: Colors.grey[600]),
             ),
             const SizedBox(height: 32),
@@ -83,10 +76,15 @@ class _DataSiswaPageState extends State<DataSiswaPage> {
                 padding: const EdgeInsets.symmetric(horizontal: 24),
                 child: Column(
                   children: [
-                    _buildDetailRow(Icons.badge_outlined, "NISN", siswa["nisn"]!),
-                    _buildDetailRow(Icons.cake_outlined, "Tanggal Lahir", siswa["ttl"]!),
-                    _buildDetailRow(Icons.home_outlined, "Alamat Orang Tua/Wali", siswa["alamat"]!),
-                    _buildDetailRow(Icons.person_pin_outlined, "Nama Orang Tua/Wali", siswa["namaOrtu"]!),
+                    _buildDetailRow(Icons.badge_outlined, "NISN", siswa.nisn),
+                    _buildDetailRow(Icons.cake_outlined, "Tanggal Lahir", siswa.ttl),
+                    _buildDetailRow(Icons.home_outlined, "Alamat Orang Tua/Wali", siswa.alamat),
+                    _buildDetailRow(Icons.location_city_outlined, "Desa", siswa.desa),
+                    _buildDetailRow(Icons.map_outlined, "Kecamatan", siswa.kecamatan),
+                    _buildDetailRow(Icons.business_outlined, "Kabupaten", siswa.kabupaten),
+                    _buildDetailRow(Icons.flag_outlined, "Provinsi", siswa.provinsi),
+                    _buildDetailRow(Icons.person_pin_outlined, "Nama Orang Tua/Wali", siswa.namaOrtu),
+                    _buildDetailRow(Icons.woman_outlined, "Nama Ibu Kandung", siswa.namaIbu),
                   ],
                 ),
               ),
@@ -180,10 +178,10 @@ class _DataSiswaPageState extends State<DataSiswaPage> {
                       child: ListTile(
                         leading: CircleAvatar(
                           backgroundColor: const Color(0xFF10B981).withOpacity(0.1),
-                          child: Text(siswa["nama"]![0], style: const TextStyle(color: Color(0xFF10B981), fontWeight: FontWeight.bold)),
+                          child: Text(siswa.nama[0], style: const TextStyle(color: Color(0xFF10B981), fontWeight: FontWeight.bold)),
                         ),
-                        title: Text(siswa["nama"]!, style: const TextStyle(fontWeight: FontWeight.bold)),
-                        subtitle: Text("NISN: ${siswa["nisn"]} • Kelas ${siswa["kelas"]}"),
+                        title: Text(siswa.nama, style: const TextStyle(fontWeight: FontWeight.bold)),
+                        subtitle: Text("NISN: ${siswa.nisn} • Kelas ${siswa.kelas}"),
                         trailing: const Icon(Icons.arrow_forward_ios, size: 14, color: Colors.grey),
                       ),
                     ),

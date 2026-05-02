@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import '../models/siswa.dart';
+import '../services/student_service.dart';
 
 class TambahSiswaPage extends StatefulWidget {
   const TambahSiswaPage({super.key});
@@ -14,6 +16,11 @@ class _TambahSiswaPageState extends State<TambahSiswaPage> {
   final _ttlController = TextEditingController();
   final _alamatController = TextEditingController();
   final _namaOrtuController = TextEditingController();
+  final _desaController = TextEditingController();
+  final _kecamatanController = TextEditingController();
+  final _kabupatenController = TextEditingController();
+  final _provinsiController = TextEditingController();
+  final _namaIbuController = TextEditingController();
   String _selectedKelas = "X-A";
   bool _isLoading = false;
 
@@ -42,9 +49,27 @@ class _TambahSiswaPageState extends State<TambahSiswaPage> {
     return null;
   }
 
-  void _handleSimpan() {
+void _handleSimpan() {
     if (_formKey.currentState!.validate()) {
       setState(() => _isLoading = true);
+      
+      // Create new siswa object from form data
+      final newSiswa = Siswa(
+        nisn: _nisnController.text,
+        nama: _namaController.text,
+        kelas: _selectedKelas,
+        ttl: _ttlController.text.isEmpty ? "-" : _ttlController.text,
+        alamat: _alamatController.text.isEmpty ? "-" : _alamatController.text,
+        namaOrtu: _namaOrtuController.text.isEmpty ? "-" : _namaOrtuController.text,
+        namaIbu: _namaIbuController.text.isEmpty ? "-" : _namaIbuController.text,
+        desa: _desaController.text.isEmpty ? "-" : _desaController.text,
+        kecamatan: _kecamatanController.text.isEmpty ? "-" : _kecamatanController.text,
+        kabupaten: _kabupatenController.text.isEmpty ? "-" : _kabupatenController.text,
+        provinsi: _provinsiController.text.isEmpty ? "-" : _provinsiController.text,
+      );
+      
+      // Save to StudentService
+      StudentService().addSiswa(newSiswa);
       
       // Simulate save delay
       Future.delayed(const Duration(milliseconds: 800), () {
@@ -68,6 +93,11 @@ class _TambahSiswaPageState extends State<TambahSiswaPage> {
     _ttlController.dispose();
     _alamatController.dispose();
     _namaOrtuController.dispose();
+    _desaController.dispose();
+    _kecamatanController.dispose();
+    _kabupatenController.dispose();
+    _provinsiController.dispose();
+    _namaIbuController.dispose();
     super.dispose();
   }
 
@@ -158,13 +188,68 @@ DropdownButtonFormField<String>(
                       ),
                     ),
                     const SizedBox(height: 16),
-                    TextFormField(
+TextFormField(
                       controller: _namaOrtuController,
                       textCapitalization: TextCapitalization.words,
                       decoration: InputDecoration(
                         labelText: "Nama Orang Tua/Wali",
                         hintText: "Contoh: Ahmad",
                         prefixIcon: const Icon(Icons.person_pin_outlined),
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    TextFormField(
+                      controller: _namaIbuController,
+                      textCapitalization: TextCapitalization.words,
+                      decoration: InputDecoration(
+                        labelText: "Nama Ibu Kandung",
+                        hintText: "Contoh: Siti Aminah",
+                        prefixIcon: const Icon(Icons.woman_outlined),
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    TextFormField(
+                      controller: _desaController,
+                      textCapitalization: TextCapitalization.words,
+                      decoration: InputDecoration(
+                        labelText: "Desa",
+                        hintText: "Contoh: Mekar Jaya",
+                        prefixIcon: const Icon(Icons.location_city_outlined),
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    TextFormField(
+                      controller: _kecamatanController,
+                      textCapitalization: TextCapitalization.words,
+                      decoration: InputDecoration(
+                        labelText: "Kecamatan",
+                        hintText: "Contoh: Cibeureum",
+                        prefixIcon: const Icon(Icons.map_outlined),
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    TextFormField(
+                      controller: _kabupatenController,
+                      textCapitalization: TextCapitalization.words,
+                      decoration: InputDecoration(
+                        labelText: "Kabupaten",
+                        hintText: "Contoh: Bandung",
+                        prefixIcon: const Icon(Icons.business_outlined),
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    TextFormField(
+                      controller: _provinsiController,
+                      textCapitalization: TextCapitalization.words,
+                      decoration: InputDecoration(
+                        labelText: "Provinsi",
+                        hintText: "Contoh: Jawa Barat",
+                        prefixIcon: const Icon(Icons.flag_outlined),
                         border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                       ),
                     ),
