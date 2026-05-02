@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../models/jacal.dart';
+import '../models/jadwal.dart';
 import 'data_siswa_page.dart';
 import 'data_kelas_page.dart';
 import 'tambah_siswa_page.dart';
@@ -21,24 +21,24 @@ class DashboardPage extends StatefulWidget {
 class _DashboardPageState extends State<DashboardPage> {
   String _searchQuery = "";
 
-  final Map<int, List<Jadwal>> _masterJadwal = {
+final Map<int, List<Jadwal>> _masterJadwal = {
     1: [
-      const Jadwal("07:30", "Bahasa Arab", "Ustadz Mansyur", "XI-C"),
-      const Jadwal("09:00", "Fiqih", "Ustadzah Maryam", "X-A"),
+      const Jadwal(jam: "07:30", mapel: "Bahasa Arab", guru: "Ustadz Mansyur", kelas: "XI-C"),
+      const Jadwal(jam: "09:00", mapel: "Fiqih", guru: "Ustadzah Maryam", kelas: "X-A"),
     ],
     2: [
-      const Jadwal("07:30", "Tahfidz", "Ustadz Zaid", "Semua Kelas"),
-      const Jadwal("09:30", "Matematika", "Ibu Rahma", "XI-B"),
+      const Jadwal(jam: "07:30", mapel: "Tahfidz", guru: "Ustadz Zaid", kelas: "Semua Kelas"),
+      const Jadwal(jam: "09:30", mapel: "Matematika", guru: "Ibu Rahma", kelas: "XI-B"),
     ],
     3: [
-      const Jadwal("08:00", "Aqidah Akhlak", "Ustadz Yusuf", "X-C"),
-      const Jadwal("10:00", "Sejarah Islam", "Ustadz Hamzah", "XII-A"),
+      const Jadwal(jam: "08:00", mapel: "Aqidah Akhlak", guru: "Ustadz Yusuf", kelas: "X-C"),
+      const Jadwal(jam: "10:00", mapel: "Sejarah Islam", guru: "Ustadz Hamzah", kelas: "XII-A"),
     ],
   };
 
   List<Jadwal> get _currentJadwal {
     int day = DateTime.now().weekday;
-    return _masterJadwal[day] ?? [const Jadwal("08:00", "Pembelajaran Umum", "Staff Pengajar", "Regular")];
+    return _masterJadwal[day] ?? [const Jadwal(jam: "08:00", mapel: "Pembelajaran Umum", guru: "Staff Pengajar", kelas: "Regular")];
   }
 
   String get _currentDayName {
@@ -46,10 +46,40 @@ class _DashboardPageState extends State<DashboardPage> {
     return names[DateTime.now().weekday];
   }
 
-  void _navigateTo(Widget page) {
+void _navigateTo(Widget page) {
     Navigator.push(
       context,
       MaterialPageRoute(builder: (context) => page),
+    );
+  }
+
+  void _showLogoutConfirmation(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text("Konfirmasi Keluar"),
+        content: const Text("Apakah Anda yakin ingin keluar dari aplikasi?"),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text("BATAL"),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(context);
+              Navigator.pushReplacement(
+                context,
+                MaterialPageRoute(builder: (context) => const LoginPage()),
+              );
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFFEF4444),
+              foregroundColor: Colors.white,
+            ),
+            child: const Text("KELUAR"),
+          ),
+        ],
+      ),
     );
   }
 
@@ -172,11 +202,8 @@ _sidebarItem(Icons.badge, "Daftar Hadir Guru", false, () => _navigateTo(const Da
           _sidebarItem(Icons.calendar_month, "Jadwal", false, () => _navigateTo(const JadwalPage())),
           _sidebarItem(Icons.file_copy, "Administrasi", false, () => _navigateTo(const AdministrasiPage())),
           const Spacer(),
-          _sidebarItem(Icons.logout, "Keluar", false, () {
-            Navigator.pushReplacement(
-              context,
-              MaterialPageRoute(builder: (context) => const LoginPage()),
-            );
+_sidebarItem(Icons.logout, "Keluar", false, () {
+            _showLogoutConfirmation(context);
           }, isRed: true),
         ],
       ),
@@ -301,7 +328,7 @@ _sidebarItem(Icons.badge, "Daftar Hadir Guru", false, () => _navigateTo(const Da
               ],
             ),
           ),
-          const Icon(Icons.arrow_forward_ios, color: Colors.white24, size: 14),
+          const Icon(Icons.arrow_forward_ios, color: Color.fromARGB(57, 2, 70, 255), size: 14),
         ],
       ),
     );

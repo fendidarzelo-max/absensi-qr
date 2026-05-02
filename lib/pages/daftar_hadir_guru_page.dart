@@ -11,17 +11,17 @@ class DaftarHadirGuruPage extends StatefulWidget {
 class _DaftarHadirGuruPageState extends State<DaftarHadirGuruPage> {
   String _searchQuery = "";
 
-  final List<Guru> _guruList = const [
-    Guru(nip: "19850101201001", nama: "Ustadz Ahmad Fauzi", mapel: "Bahasa Arab", kelas: "XI-C", status: "Hadir"),
-    Guru(nip: "19850102201002", nama: "Ustadzah Maryam", mapel: "Fiqih", kelas: "X-A", status: "Hadir"),
-    Guru(nip: "19850103201003", nama: "Ustadz Mansyur", mapel: "Tahfidz", kelas: "Semua Kelas", status: "Hadir"),
-    Guru(nip: "19850104201004", nama: "Ustadz Zaid", mapel: "Matematika", kelas: "XI-B", status: "Izin"),
-    Guru(nip: "19850105201005", nama: "Ibu Rahma", mapel: "Sejarah Islam", kelas: "XII-A", status: "Hadir"),
-    Guru(nip: "19850106201006", nama: "Ustadz Yusuf", mapel: "Aqidah Akhlak", kelas: "X-C", status: "Hadir"),
-    Guru(nip: "19850107201007", nama: "Ustadz Hamzah", mapel: "Bahasa Inggris", kelas: "X-B", status: "Sakit"),
-    Guru(nip: "19850108201008", nama: "Ibu Siti", mapel: "Bahasa Indonesia", kelas: "X-A", status: "Hadir"),
-    Guru(nip: "19850109201009", nama: "Pak Rudi", mapel: "Fisika", kelas: "XI-A", status: "Hadir"),
-    Guru(nip: "19850110201010", nama: "Ibu Dewi", mapel: "Kimia", kelas: "XII-B", status: "Alpha"),
+  final List<Guru> _guruList = [
+    const Guru(nip: "19850101201001", nama: "Ustadz Ahmad Fauzi", mapel: "Bahasa Arab", kelas: "XI-C", status: "Hadir"),
+    const Guru(nip: "19850102201002", nama: "Ustadzah Maryam", mapel: "Fiqih", kelas: "X-A", status: "Hadir"),
+    const Guru(nip: "19850103201003", nama: "Ustadz Mansyur", mapel: "Tahfidz", kelas: "Semua Kelas", status: "Hadir"),
+    const Guru(nip: "19850104201004", nama: "Ustadz Zaid", mapel: "Matematika", kelas: "XI-B", status: "Izin"),
+    const Guru(nip: "19850105201005", nama: "Ibu Rahma", mapel: "Sejarah Islam", kelas: "XII-A", status: "Hadir"),
+    const Guru(nip: "19850106201006", nama: "Ustadz Yusuf", mapel: "Aqidah Akhlak", kelas: "X-C", status: "Hadir"),
+    const Guru(nip: "19850107201007", nama: "Ustadz Hamzah", mapel: "Bahasa Inggris", kelas: "X-B", status: "Sakit"),
+    const Guru(nip: "19850108201008", nama: "Ibu Siti", mapel: "Bahasa Indonesia", kelas: "X-A", status: "Hadir"),
+    const Guru(nip: "19850109201009", nama: "Pak Rudi", mapel: "Fisika", kelas: "XI-A", status: "Hadir"),
+    const Guru(nip: "19850110201010", nama: "Ibu Dewi", mapel: "Kimia", kelas: "XII-B", status: "Alpha"),
   ];
 
   List<Guru> get _filteredGuru {
@@ -63,38 +63,52 @@ class _DaftarHadirGuruPageState extends State<DaftarHadirGuruPage> {
     }
   }
 
-  void _toggleStatus(int index) {
+void _toggleStatus(int index) {
+    final currentStatus = _guruList[index].status;
+    String newStatus;
+    
+    switch (currentStatus) {
+      case "Hadir":
+        newStatus = "Izin";
+        break;
+      case "Izin":
+        newStatus = "Sakit";
+        break;
+      case "Sakit":
+        newStatus = "Alpha";
+        break;
+      case "Alpha":
+        newStatus = "Hadir";
+        break;
+      default:
+        newStatus = "Hadir";
+    }
+    
+    // Update the list with new status
+    final updatedList = List<Guru>.from(_guruList);
+    updatedList[index] = Guru(
+      nip: _guruList[index].nip,
+      nama: _guruList[index].nama,
+      mapel: _guruList[index].mapel,
+      kelas: _guruList[index].kelas,
+      status: newStatus,
+    );
+    
     setState(() {
-      final currentStatus = _guruList[index].status;
-      String newStatus;
-      
-      switch (currentStatus) {
-        case "Hadir":
-          newStatus = "Izin";
-          break;
-        case "Izin":
-          newStatus = "Sakit";
-          break;
-        case "Sakit":
-          newStatus = "Alpha";
-          break;
-        case "Alpha":
-          newStatus = "Hadir";
-          break;
-        default:
-          newStatus = "Hadir";
-      }
-      
-      // Create new list with updated status
-      final updatedList = List<Guru>.from(_guruList);
-      updatedList[index] = Guru(
-        nip: _guruList[index].nip,
-        nama: _guruList[index].nama,
-        mapel: _guruList[index].mapel,
-        kelas: _guruList[index].kelas,
-        status: newStatus,
-      );
+      _guruList.clear();
+      _guruList.addAll(updatedList);
     });
+    
+    // Show feedback
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text("Status ${_guruList[index].nama} diubah menjadi $newStatus"),
+          duration: const Duration(seconds: 1),
+          backgroundColor: const Color(0xFF10B981),
+        ),
+      );
+    }
   }
 
   int _getHadirCount() {

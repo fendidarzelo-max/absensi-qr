@@ -6,32 +6,32 @@ class JadwalPage extends StatelessWidget {
 
   final Map<String, List<Jadwal>> _jadwalMingguan = const {
     "Senin": [
-      Jadwal("07:30", "Bahasa Arab", "Ustadz Mansyur", "XI-C"),
-      Jadwal("09:00", "Fiqih", "Ustadzah Maryam", "X-A"),
-      Jadwal("10:30", "Bahasa Inggris", "Ibu Sarah", "X-B"),
+      Jadwal(jam: "07:30", mapel: "Bahasa Arab", guru: "Ustadz Mansyur", kelas: "XI-C"),
+      Jadwal(jam: "09:00", mapel: "Fiqih", guru: "Ustadzah Maryam", kelas: "X-A"),
+      Jadwal(jam: "10:30", mapel: "Bahasa Inggris", guru: "Ibu Sarah", kelas: "X-B"),
     ],
     "Selasa": [
-      Jadwal("07:30", "Tahfidz", "Ustadz Zaid", "Semua Kelas"),
-      Jadwal("09:30", "Matematika", "Ibu Rahma", "XI-B"),
-      Jadwal("11:00", "Sejarah Islam", "Ustadz Hamzah", "XII-A"),
+      Jadwal(jam: "07:30", mapel: "Tahfidz", guru: "Ustadz Zaid", kelas: "Semua Kelas"),
+      Jadwal(jam: "09:30", mapel: "Matematika", guru: "Ibu Rahma", kelas: "XI-B"),
+      Jadwal(jam: "11:00", mapel: "Sejarah Islam", guru: "Ustadz Hamzah", kelas: "XII-A"),
     ],
     "Rabu": [
-      Jadwal("08:00", "Aqidah Akhlak", "Ustadz Yusuf", "X-C"),
-      Jadwal("10:00", "Sejarah Islam", "Ustadz Hamzah", "XII-A"),
-      Jadwal("13:00", "Olahraga", "Pak Budi", "Semua Kelas"),
+      Jadwal(jam: "08:00", mapel: "Aqidah Akhlak", guru: "Ustadz Yusuf", kelas: "X-C"),
+      Jadwal(jam: "10:00", mapel: "Sejarah Islam", guru: "Ustadz Hamzah", kelas: "XII-A"),
+      Jadwal(jam: "13:00", mapel: "Olahraga", guru: "Pak Budi", kelas: "Semua Kelas"),
     ],
     "Kamis": [
-      Jadwal("07:30", "Bahasa Indonesia", "Ibu Siti", "X-A"),
-      Jadwal("09:00", "Fisika", "Pak Rudi", "XI-A"),
-      Jadwal("10:30", "Kimia", "Ibu Dewi", "XII-B"),
+      Jadwal(jam: "07:30", mapel: "Bahasa Indonesia", guru: "Ibu Siti", kelas: "X-A"),
+      Jadwal(jam: "09:00", mapel: "Fisika", guru: "Pak Rudi", kelas: "XI-A"),
+      Jadwal(jam: "10:30", mapel: "Kimia", guru: "Ibu Dewi", kelas: "XII-B"),
     ],
     "Jumat": [
-      Jadwal("07:30", "Hadits", "Ustadz Fauzi", "X-A"),
-      Jadwal("09:00", "Tafsir", "Ustadz Mansyur", "XI-B"),
+      Jadwal(jam: "07:30", mapel: "Hadits", guru: "Ustadz Fauzi", kelas: "X-A"),
+      Jadwal(jam: "09:00", mapel: "Tafsir", guru: "Ustadz Mansyur", kelas: "XI-B"),
     ],
     "Sabtu": [
-      Jadwal("08:00", "Praktek Ibadah", "Ustadz Zaid", "Semua Kelas"),
-      Jadwal("10:00", "Seni Kaligrafi", "Ibu Aminah", "X-C"),
+      Jadwal(jam: "08:00", mapel: "Praktek Ibadah", guru: "Ustadz Zaid", kelas: "Semua Kelas"),
+      Jadwal(jam: "10:00", mapel: "Seni Kaligrafi", guru: "Ibu Aminah", kelas: "X-C"),
     ],
   };
 
@@ -99,4 +99,3 @@ class JadwalPage extends StatelessWidget {
     );
   }
 }
-
