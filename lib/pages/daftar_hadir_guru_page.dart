@@ -64,9 +64,10 @@ class _DaftarHadirGuruPageState extends State<DaftarHadirGuruPage> {
   }
 
 void _toggleStatus(int index) {
-    final currentStatus = _guruList[index].status;
+    final guru = _guruList[index];
+    final currentStatus = guru.status;
     String newStatus;
-    
+
     switch (currentStatus) {
       case "Hadir":
         newStatus = "Izin";
@@ -83,33 +84,28 @@ void _toggleStatus(int index) {
       default:
         newStatus = "Hadir";
     }
-    
-    // Update the list with new status
-    final updatedList = List<Guru>.from(_guruList);
-    updatedList[index] = Guru(
-      nip: _guruList[index].nip,
-      nama: _guruList[index].nama,
-      mapel: _guruList[index].mapel,
-      kelas: _guruList[index].kelas,
-      status: newStatus,
-    );
-    
+
     setState(() {
-      _guruList.clear();
-      _guruList.addAll(updatedList);
+      _guruList[index] = Guru(
+        nip: guru.nip,
+        nama: guru.nama,
+        mapel: guru.mapel,
+        kelas: guru.kelas,
+        status: newStatus,
+      );
     });
-    
-    // Show feedback
+
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text("Status ${_guruList[index].nama} diubah menjadi $newStatus"),
+          content: Text("Status ${guru.nama} diubah menjadi $newStatus"),
           duration: const Duration(seconds: 1),
           backgroundColor: const Color(0xFF10B981),
         ),
       );
     }
   }
+
 
   int _getHadirCount() {
     return _guruList.where((g) => g.status == "Hadir").length;

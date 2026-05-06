@@ -52,12 +52,13 @@ class _DataSiswaPageState extends State<DataSiswaPage> {
               radius: 50,
               backgroundColor: const Color(0xFF10B981).withOpacity(0.1),
               child: Text(
-                siswa.nama[0],
+                (siswa.nama.isNotEmpty ? siswa.nama[0] : "?"),
                 style: const TextStyle(
                   fontSize: 36,
                   color: Color(0xFF10B981),
                   fontWeight: FontWeight.bold,
                 ),
+
               ),
             ),
             const SizedBox(height: 16),
@@ -178,7 +179,14 @@ class _DataSiswaPageState extends State<DataSiswaPage> {
                       child: ListTile(
                         leading: CircleAvatar(
                           backgroundColor: const Color(0xFF10B981).withOpacity(0.1),
-                          child: Text(siswa.nama[0], style: const TextStyle(color: Color(0xFF10B981), fontWeight: FontWeight.bold)),
+                          child: Text(
+                            (siswa.nama.isNotEmpty ? siswa.nama[0] : "?"),
+                            style: const TextStyle(
+                              color: Color(0xFF10B981),
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+
                         ),
                         title: Text(siswa.nama, style: const TextStyle(fontWeight: FontWeight.bold)),
                         subtitle: Text("NISN: ${siswa.nisn} • Kelas ${siswa.kelas}"),

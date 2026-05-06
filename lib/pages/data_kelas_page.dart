@@ -1,18 +1,35 @@
 import 'package:flutter/material.dart';
+import '../models/siswa.dart';
+import '../services/student_service.dart';
 
 class DataKelasPage extends StatelessWidget {
-  const DataKelasPage({super.key});
+  DataKelasPage({super.key});
+
+
+  final StudentService _studentService = StudentService();
+
+
 
   final List<Map<String, dynamic>> _kelasList = const [
-    {"nama": "X-A", "jumlah": 32, "wali": "Ustadz Mansyur"},
-    {"nama": "X-B", "jumlah": 30, "wali": "Ustadzah Maryam"},
-    {"nama": "X-C", "jumlah": 28, "wali": "Ustadz Zaid"},
-    {"nama": "XI-A", "jumlah": 31, "wali": "Ustadz Yusuf"},
-    {"nama": "XI-B", "jumlah": 29, "wali": "Ustadz Hamzah"},
-    {"nama": "XI-C", "jumlah": 27, "wali": "Ibu Rahma"},
-    {"nama": "XII-A", "jumlah": 33, "wali": "Ustadz Fauzi"},
-    {"nama": "XII-B", "jumlah": 30, "wali": "Ustadzah Aminah"},
+    {"nama": "X-A", "wali": "Ustadz Mansyur"},
+    {"nama": "X-B", "wali": "Ustadzah Maryam"},
+    {"nama": "X-C", "wali": "Ustadz Zaid"},
+    {"nama": "XI-A", "wali": "Ustadz Yusuf"},
+    {"nama": "XI-B", "wali": "Ustadz Hamzah"},
+    {"nama": "XI-C", "wali": "Ibu Rahma"},
+    {"nama": "XII-A", "wali": "Ustadz Fauzi"},
+    {"nama": "XII-B", "wali": "Ustadzah Aminah"},
   ];
+
+  int _getJumlahSiswa(String kelas) {
+    final allSiswa = _studentService.getAllSiswa();
+    return allSiswa.where((s) => s.kelas == kelas).length;
+  }
+
+  List<Siswa> _getSiswaByKelas(String kelas) {
+    final allSiswa = _studentService.getAllSiswa();
+    return allSiswa.where((s) => s.kelas == kelas).toList();
+  }
 
   @override
   Widget build(BuildContext context) {

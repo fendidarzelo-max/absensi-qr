@@ -14,6 +14,7 @@ import 'daftar_hadir_guru_page.dart';
 class DashboardPage extends StatefulWidget {
   const DashboardPage({super.key});
 
+
   @override
   State<DashboardPage> createState() => _DashboardPageState();
 }
@@ -260,7 +261,8 @@ _sidebarItem(Icons.logout, "Keluar", false, () {
 
   Widget _buildMenuGrid(bool isDesktop) {
     final List<Map<String, dynamic>> menus = [
-      {"icon": Icons.class_outlined, "label": "Data Kelas", "page": const DataKelasPage()},
+      {"icon": Icons.class_outlined, "label": "Data Kelas", "page": DataKelasPage()},
+
       {"icon": Icons.person_add_alt_1, "label": "Tambah Siswa", "page": const TambahSiswaPage()},
       {"icon": Icons.qr_code_2, "label": "Absensi QR Siswa", "page": const AbsensiQRPage()},
 {"icon": Icons.badge, "label": "Daftar Hadir Guru", "page": const DaftarHadirGuruPage()},
