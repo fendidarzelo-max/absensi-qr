@@ -73,7 +73,7 @@ class DataKelasPage extends StatelessWidget {
                   ),
                   const Spacer(),
                   Text(kelas["nama"], style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
-                  Text("${kelas["jumlah"]} Siswa", style: TextStyle(color: Colors.grey[600])),
+                  Text("${_getJumlahSiswa(kelas["nama"] as String)} Siswa", style: TextStyle(color: Colors.grey[600])),
                   const SizedBox(height: 4),
                   Text("Wali: ${kelas["wali"]}", style: TextStyle(color: Colors.grey[600], fontSize: 12)),
                 ],
