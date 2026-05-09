@@ -5,30 +5,19 @@ import '../services/student_service.dart';
 class DataKelasPage extends StatelessWidget {
   DataKelasPage({super.key});
 
-
   final StudentService _studentService = StudentService();
 
-
-
-  final List<Map<String, dynamic>> _kelasList = const [
-    {"nama": "X-A", "wali": "Ustadz Mansyur"},
-    {"nama": "X-B", "wali": "Ustadzah Maryam"},
-    {"nama": "X-C", "wali": "Ustadz Zaid"},
-    {"nama": "XI-A", "wali": "Ustadz Yusuf"},
-    {"nama": "XI-B", "wali": "Ustadz Hamzah"},
-    {"nama": "XI-C", "wali": "Ibu Rahma"},
-    {"nama": "XII-A", "wali": "Ustadz Fauzi"},
-    {"nama": "XII-B", "wali": "Ustadzah Aminah"},
-  ];
+  List<String> _getKelasOptions() {
+    final allSiswa = _studentService.getAllSiswa();
+    final kelasSet = allSiswa.map((s) => s.kelas).toSet();
+    final kelasList = kelasSet.toList();
+    kelasList.sort();
+    return kelasList;
+  }
 
   int _getJumlahSiswa(String kelas) {
     final allSiswa = _studentService.getAllSiswa();
     return allSiswa.where((s) => s.kelas == kelas).length;
-  }
-
-  List<Siswa> _getSiswaByKelas(String kelas) {
-    final allSiswa = _studentService.getAllSiswa();
-    return allSiswa.where((s) => s.kelas == kelas).toList();
   }
 
   @override
@@ -44,7 +33,7 @@ class DataKelasPage extends StatelessWidget {
       body: Padding(
         padding: const EdgeInsets.all(24.0),
         child: GridView.builder(
-          itemCount: _kelasList.length,
+          itemCount: _getKelasOptions().length,
           gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
             crossAxisCount: 2,
             crossAxisSpacing: 16,
@@ -52,8 +41,10 @@ class DataKelasPage extends StatelessWidget {
             childAspectRatio: 1.2,
           ),
           itemBuilder: (context, index) {
-            final kelas = _kelasList[index];
+            final namaKelas = _getKelasOptions()[index];
+            const waliPlaceholder = "-";
             return Container(
+
               decoration: BoxDecoration(
                 color: Colors.white,
                 borderRadius: BorderRadius.circular(20),
@@ -72,10 +63,10 @@ class DataKelasPage extends StatelessWidget {
                     child: const Icon(Icons.class_outlined, color: Color(0xFF10B981)),
                   ),
                   const Spacer(),
-                  Text(kelas["nama"], style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
-                  Text("${_getJumlahSiswa(kelas["nama"] as String)} Siswa", style: TextStyle(color: Colors.grey[600])),
+                  Text(namaKelas, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+                  Text("${_getJumlahSiswa(namaKelas)} Siswa", style: TextStyle(color: Colors.grey[600])),
                   const SizedBox(height: 4),
-                  Text("Wali: ${kelas["wali"]}", style: TextStyle(color: Colors.grey[600], fontSize: 12)),
+                  Text("Wali: $waliPlaceholder", style: TextStyle(color: Colors.grey[600], fontSize: 12)),
                 ],
               ),
             );
