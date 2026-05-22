@@ -5,6 +5,7 @@ import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 import '../models/siswa.dart';
+import '../services/system_service.dart';
 
 class KartuPelajarPage extends StatefulWidget {
   const KartuPelajarPage({super.key});
@@ -14,6 +15,7 @@ class KartuPelajarPage extends StatefulWidget {
 }
 
 class _KartuPelajarPageState extends State<KartuPelajarPage> {
+  final SystemService _systemService = SystemService();
   final _formKey = GlobalKey<FormState>();
   final _nisnController = TextEditingController();
   final _namaController = TextEditingController();
@@ -21,20 +23,32 @@ class _KartuPelajarPageState extends State<KartuPelajarPage> {
   final _alamatController = TextEditingController();
   final _namaOrtuController = TextEditingController();
   
-String _selectedKelas = "X-A";
+  String _selectedKelas = "X-A";
   Uint8List? _selectedImageBytes;
   final ImagePicker _picker = ImagePicker();
   
   final List<String> _kelasOptions = ["X-A", "X-B", "X-C", "XI-A", "XI-B", "XI-C", "XII-A", "XII-B"];
-  
-// Sample student data for quick selection
-  final List<Siswa> _sampleSiswa = [
-    const Siswa(nisn: "009822314", nama: "M. Zidan Al-Fatih", kelas: "X-A", ttl: "Bandung, 15 Mei 2008", alamat: "Jl. Merdeka No. 12", namaOrtu: "Bpk. Ahmad", namaIbu: "Ibu Siti", desa: "Mekar Jaya", kecamatan: "Cibeureum", kabupaten: "Bandung", provinsi: "Jawa Barat"),
-    const Siswa(nisn: "009822315", nama: "Aisyah Puteri", kelas: "X-B", ttl: "Bandung, 20 Juni 2008", alamat: "Jl. Asia No. 8", namaOrtu: "Bpk. Budi", namaIbu: "Ibu Siti", desa: "Cibeureum", kecamatan: "Cibeureum", kabupaten: "Bandung", provinsi: "Jawa Barat"),
-    const Siswa(nisn: "009822316", nama: "Fatih Nur wahid", kelas: "XI-A", ttl: "Bandung, 10 Maret 2007", alamat: "Jl. Sudirman No. 25", namaOrtu: "Bpk. Yusuf", namaIbu: "Ibu Aminah", desa: "Mekar Jaya", kecamatan: "Cibeureum", kabupaten: "Bandung", provinsi: "Jawa Barat"),
-  ];
 
-Future<void> _pickImage() async {
+  @override
+  void initState() {
+    super.initState();
+    // Default select first student if available
+    if (_systemService.siswaList.isNotEmpty) {
+      _selectSiswa(_systemService.siswaList.first);
+    }
+  }
+
+  @override
+  void dispose() {
+    _nisnController.dispose();
+    _namaController.dispose();
+    _ttlController.dispose();
+    _alamatController.dispose();
+    _namaOrtuController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _pickImage() async {
     final XFile? image = await _picker.pickImage(source: ImageSource.gallery, maxWidth: 500, maxHeight: 500);
     if (image != null) {
       final bytes = await image.readAsBytes();
@@ -58,6 +72,7 @@ Future<void> _pickImage() async {
       _ttlController.text = siswa.ttl;
       _alamatController.text = siswa.alamat;
       _namaOrtuController.text = siswa.namaOrtu;
+      _selectedImageBytes = null; // Clear manual photo when changing student
     });
   }
 
@@ -69,14 +84,14 @@ Future<void> _pickImage() async {
         gradient: const LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [Color(0xFF065F46), Color(0xFF10B981)],
+          colors: [Color(0xFF102C57), Color(0xFF1D4ED8)],
         ),
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.2),
-            blurRadius: 10,
-            offset: const Offset(0, 5),
+            color: Colors.black.withOpacity(0.15),
+            blurRadius: 12,
+            offset: const Offset(0, 6),
           ),
         ],
       ),
@@ -88,19 +103,36 @@ Future<void> _pickImage() async {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text(
-                "KARTU PELAJAR MADRASAH",
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 10,
-                  fontWeight: FontWeight.bold,
-                  letterSpacing: 1.2,
-                ),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    "KARTU PELAJAR MADRASAH",
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 11,
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: 1.2,
+                    ),
+                  ),
+                  Text(
+                    _systemService.schoolName.toUpperCase(),
+                    style: const TextStyle(
+                      color: Colors.white70,
+                      fontSize: 8,
+                    ),
+                  ),
+                ],
               ),
               Container(
                 padding: const EdgeInsets.all(4),
                 color: Colors.white,
-                child: const Icon(Icons.qr_code, size: 40, color: Colors.black),
+                child: Image.network(
+                  "https://api.qrserver.com/v1/create-qr-code/?size=40x40&data=${_nisnController.text.isEmpty ? "0000" : _nisnController.text}",
+                  width: 36,
+                  height: 36,
+                  errorBuilder: (c, e, s) => const Icon(Icons.qr_code, size: 36, color: Colors.black),
+                ),
               )
             ],
           ),
@@ -109,10 +141,10 @@ Future<void> _pickImage() async {
           // Photo and Info Row
           Row(
             children: [
-// Student Photo
+              // Student Photo
               Container(
-                width: 60,
-                height: 80,
+                width: 65,
+                height: 85,
                 decoration: BoxDecoration(
                   color: Colors.white24,
                   borderRadius: BorderRadius.circular(10),
@@ -150,19 +182,19 @@ Future<void> _pickImage() async {
                       _nisnController.text.isEmpty ? "NISN: -" : "NISN: ${_nisnController.text}",
                       style: const TextStyle(color: Colors.white70, fontSize: 12),
                     ),
-                    const SizedBox(height: 5),
+                    const SizedBox(height: 4),
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                       decoration: BoxDecoration(
                         color: Colors.amber,
-                        borderRadius: BorderRadius.circular(5),
+                        borderRadius: BorderRadius.circular(6),
                       ),
                       child: Text(
-                        _selectedKelas,
+                        "KELAS $_selectedKelas",
                         style: const TextStyle(
-                          color: Color(0xFF065F46),
+                          color: Color(0xFF102C57),
                           fontWeight: FontWeight.bold,
-                          fontSize: 10,
+                          fontSize: 9,
                         ),
                       ),
                     ),
@@ -180,7 +212,7 @@ Future<void> _pickImage() async {
             child: Text(
               "SMART MADRASAH SYSTEM",
               style: TextStyle(
-                color: Colors.white.withOpacity(0.38),
+                color: Colors.white.withOpacity(0.4),
                 fontSize: 8,
                 fontStyle: FontStyle.italic,
               ),
@@ -224,14 +256,14 @@ Future<void> _pickImage() async {
       child: Container(
         padding: const EdgeInsets.all(20),
         decoration: BoxDecoration(
-          color: const Color(0xFF10B981).withOpacity(0.1),
+          color: const Color(0xFF102C57).withOpacity(0.08),
           borderRadius: BorderRadius.circular(15),
         ),
         child: Column(
           children: [
-            Icon(icon, size: 40, color: const Color(0xFF10B981)),
+            Icon(icon, size: 40, color: const Color(0xFF102C57)),
             const SizedBox(height: 8),
-            Text(label),
+            Text(label, style: const TextStyle(fontWeight: FontWeight.bold)),
           ],
         ),
       ),
@@ -243,7 +275,7 @@ Future<void> _pickImage() async {
       const SnackBar(content: Text("Menyiapkan PDF...")),
     );
 
-final pdf = pw.Document();
+    final pdf = pw.Document();
 
     pw.ImageProvider? imageProvider;
     if (_selectedImageBytes != null) {
@@ -258,13 +290,13 @@ final pdf = pw.Document();
             child: pw.Container(
               width: 350,
               height: 220,
-              decoration: pw.BoxDecoration(
-                gradient: const pw.LinearGradient(
-                  colors: [PdfColor.fromInt(0xFF065F46), PdfColor.fromInt(0xFF10B981)],
+              decoration: const pw.BoxDecoration(
+                gradient: pw.LinearGradient(
+                  colors: [PdfColor.fromInt(0xFF102C57), PdfColor.fromInt(0xFF1D4ED8)],
                   begin: pw.Alignment.topLeft,
                   end: pw.Alignment.bottomRight,
                 ),
-                borderRadius: const pw.BorderRadius.all(pw.Radius.circular(20)),
+                borderRadius: pw.BorderRadius.all(pw.Radius.circular(20)),
               ),
               padding: const pw.EdgeInsets.all(20),
               child: pw.Column(
@@ -273,13 +305,25 @@ final pdf = pw.Document();
                   pw.Row(
                     mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
                     children: [
-                      pw.Text(
-                        "KARTU PELAJAR MADRASAH",
-                        style: pw.TextStyle(
-                          color: PdfColors.white,
-                          fontSize: 10,
-                          fontWeight: pw.FontWeight.bold,
-                        ),
+                      pw.Column(
+                        crossAxisAlignment: pw.CrossAxisAlignment.start,
+                        children: [
+                          pw.Text(
+                            "KARTU PELAJAR MADRASAH",
+                            style: pw.TextStyle(
+                              color: PdfColors.white,
+                              fontSize: 11,
+                              fontWeight: pw.FontWeight.bold,
+                            ),
+                          ),
+                          pw.Text(
+                            _systemService.schoolName.toUpperCase(),
+                            style: const pw.TextStyle(
+                              color: PdfColors.white,
+                              fontSize: 8,
+                            ),
+                          ),
+                        ],
                       ),
                       pw.Container(
                         padding: const pw.EdgeInsets.all(4),
@@ -300,8 +344,8 @@ final pdf = pw.Document();
                   pw.Row(
                     children: [
                       pw.Container(
-                        width: 60,
-                        height: 80,
+                        width: 65,
+                        height: 85,
                         decoration: pw.BoxDecoration(
                           color: const PdfColor.fromInt(0x3DFFFFFF),
                           borderRadius: const pw.BorderRadius.all(pw.Radius.circular(10)),
@@ -343,11 +387,11 @@ final pdf = pw.Document();
                                 borderRadius: pw.BorderRadius.all(pw.Radius.circular(5)),
                               ),
                               child: pw.Text(
-                                _selectedKelas,
-                                style: pw.TextStyle(
-                                  color: const PdfColor.fromInt(0xFF065F46),
+                                "KELAS $_selectedKelas",
+                                style: const pw.TextStyle(
+                                  color: PdfColor.fromInt(0xFF102C57),
                                   fontWeight: pw.FontWeight.bold,
-                                  fontSize: 10,
+                                  fontSize: 9,
                                 ),
                               ),
                             ),
@@ -382,15 +426,16 @@ final pdf = pw.Document();
     );
   }
 
-
   @override
   Widget build(BuildContext context) {
+    final siswaList = _systemService.siswaList;
+
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAFC),
       appBar: AppBar(
-        backgroundColor: const Color(0xFF10B981),
+        backgroundColor: const Color(0xFF102C57),
         foregroundColor: Colors.white,
-        title: const Text("Kartu Pelajar"),
+        title: const Text("Cetak Kartu Siswa Massal"),
         elevation: 0,
       ),
       body: SingleChildScrollView(
@@ -401,29 +446,35 @@ final pdf = pw.Document();
             _buildKartuBelajar(),
             const SizedBox(height: 24),
             
-            // Quick Select Student
+            // Quick Select Student (Live Data)
             Container(
-              padding: const EdgeInsets.all(16),
+              width: double.infinity,
+              padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
                 color: Colors.white,
                 borderRadius: BorderRadius.circular(15),
                 border: Border.all(color: Colors.grey.withOpacity(0.1)),
+                boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 10)],
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text("Pilih Siswa (Demo)", style: TextStyle(fontWeight: FontWeight.bold)),
+                  const Text("Pilih Profil Siswa Aktif", style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF102C57))),
+                  const SizedBox(height: 4),
+                  Text("Muat cepat data dari basis data untuk mempratinjau kartu pelajar.", style: TextStyle(color: Colors.grey[600], fontSize: 11)),
                   const SizedBox(height: 12),
                   Wrap(
                     spacing: 8,
                     runSpacing: 8,
-                    children: _sampleSiswa.map((siswa) => 
-                      ActionChip(
+                    children: siswaList.map((siswa) {
+                      final isSelected = _nisnController.text == siswa.nisn;
+                      return ActionChip(
                         label: Text(siswa.nama, style: const TextStyle(fontSize: 12)),
                         onPressed: () => _selectSiswa(siswa),
-                        backgroundColor: const Color(0xFF10B981).withOpacity(0.1),
-                      )
-                    ).toList(),
+                        backgroundColor: isSelected ? const Color(0xFF102C57) : const Color(0xFF102C57).withOpacity(0.08),
+                        labelStyle: TextStyle(color: isSelected ? Colors.white : const Color(0xFF102C57), fontWeight: isSelected ? FontWeight.bold : FontWeight.normal),
+                      );
+                    }).toList(),
                   ),
                 ],
               ),
@@ -437,18 +488,19 @@ final pdf = pw.Document();
                 color: Colors.white,
                 borderRadius: BorderRadius.circular(20),
                 border: Border.all(color: Colors.grey.withOpacity(0.1)),
+                boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 10)],
               ),
               child: Form(
                 key: _formKey,
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text("Data Siswa", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                    const Text("Detail Kredensial Siswa", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF102C57))),
                     const SizedBox(height: 4),
-                    Text("Isi data siswa untuk kartu", style: TextStyle(color: Colors.grey[600], fontSize: 12)),
+                    Text("Isi atau edit data untuk dicetak di kartu", style: TextStyle(color: Colors.grey[600], fontSize: 12)),
                     const SizedBox(height: 20),
                     
-// Photo Picker
+                    // Photo Picker
                     Center(
                       child: GestureDetector(
                         onTap: _showImagePickerDialog,
@@ -565,9 +617,21 @@ final pdf = pw.Document();
               child: ElevatedButton(
                 onPressed: () {
                   if (_nisnController.text.isNotEmpty && _namaController.text.isNotEmpty) {
+                    // Update student in local database
+                    final oldSiswaIndex = _systemService.siswaList.indexWhere((s) => s.nisn == _nisnController.text);
+                    if (oldSiswaIndex != -1) {
+                      final updated = _systemService.siswaList[oldSiswaIndex].copyWith(
+                        nama: _namaController.text,
+                        kelas: _selectedKelas,
+                        ttl: _ttlController.text,
+                        alamat: _alamatController.text,
+                        namaOrtu: _namaOrtuController.text,
+                      );
+                      _systemService.updateSiswa(updated);
+                    }
                     ScaffoldMessenger.of(context).showSnackBar(
                       const SnackBar(
-                        content: Text("Kartu berhasil dibuat!"),
+                        content: Text("Data Kartu disimpan!"),
                         backgroundColor: Color(0xFF10B981),
                       ),
                     );
@@ -581,25 +645,26 @@ final pdf = pw.Document();
                   }
                 },
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF10B981),
+                  backgroundColor: const Color(0xFF102C57),
                   foregroundColor: Colors.white,
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
                 ),
-                child: const Text("SIMPAN KARTU", style: TextStyle(fontWeight: FontWeight.bold)),
+                child: const Text("SIMPAN PERUBAHAN DATA KARTU", style: TextStyle(fontWeight: FontWeight.bold)),
               ),
             ),
             const SizedBox(height: 12),
             SizedBox(
               width: 350,
               height: 55,
-              child: OutlinedButton(
+              child: OutlinedButton.icon(
                 onPressed: _exportPdf,
+                icon: const Icon(Icons.picture_as_pdf),
+                label: const Text("EKSPOR DAN PRATINJAU PDF", style: TextStyle(fontWeight: FontWeight.bold)),
                 style: OutlinedButton.styleFrom(
-                  foregroundColor: const Color(0xFF10B981),
-                  side: const BorderSide(color: Color(0xFF10B981)),
+                  foregroundColor: const Color(0xFF102C57),
+                  side: const BorderSide(color: Color(0xFF102C57)),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
                 ),
-                child: const Text("EKSPOR PDF", style: TextStyle(fontWeight: FontWeight.bold)),
               ),
             ),
           ],

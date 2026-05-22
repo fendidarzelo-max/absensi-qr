@@ -16,9 +16,9 @@ class AbsensiMadrasahApp extends StatelessWidget {
       theme: ThemeData(
         useMaterial3: true,
         colorScheme: ColorScheme.fromSeed(
-          seedColor: const Color(0xFF10B981),
-          primary: const Color(0xFF10B981),
-          secondary: const Color(0xFF065F46),
+          seedColor: const Color(0xFF102C57),
+          primary: const Color(0xFF102C57),
+          secondary: const Color(0xFF1D4ED8),
         ),
         fontFamily: 'Sans-Serif',
       ),

@@ -38,7 +38,7 @@ class _LoginPageState extends State<LoginPage> {
     if (_formKey.currentState!.validate()) {
       setState(() => _isLoading = true);
       
-      // Simulate login delay
+      // Simulate secure authorization handshake delay
       Future.delayed(const Duration(milliseconds: 800), () {
         if (mounted) {
           Navigator.pushReplacement(
@@ -60,7 +60,7 @@ class _LoginPageState extends State<LoginPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color.fromARGB(255, 25, 5, 252),
+      backgroundColor: const Color(0xFF102C57), // Sleek Navy Blue
       body: Center(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(24.0),
@@ -72,30 +72,47 @@ class _LoginPageState extends State<LoginPage> {
               borderRadius: BorderRadius.circular(30),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.1),
-                  blurRadius: 20,
-                  offset: const Offset(0, 10),
+                  color: Colors.black.withOpacity(0.2),
+                  blurRadius: 25,
+                  offset: const Offset(0, 12),
                 )
               ],
             ),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFF0FDF4),
-                    borderRadius: BorderRadius.circular(20),
+                // ===== BAGIAN LOGO YANG DIUBAH =====
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(12),
+                  child: Stack(
+                    alignment: Alignment.center,
+                    children: [
+                      const Icon(Icons.mosque, size: 0),
+                      Image.asset( 
+                        'assets/logo.png', // <--- Sesuaikan dengan nama folder YAML
+                        width: 100,
+                        height: 100,
+                        fit: BoxFit.cover,
+                        errorBuilder: (context, error, stackTrace) {
+                          return const Icon(Icons.broken_image, size: 60, color: Color(0xFF102C57));
+                        },
+                      ),
+                    ],
                   ),
-                  child: const Icon(Icons.mosque, size: 60, color: Color(0xFF10B981)),
                 ),
+                // ===================================
                 const SizedBox(height: 20),
                 const Text(
                   "Absensi Madrasah",
-                  style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+                  style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Color(0xFF102C57)),
                 ),
-                const Text("Masuk dengan akun email Anda", style: TextStyle(color: Colors.grey)),
-const SizedBox(height: 32),
+                const SizedBox(height: 4),
+                const Text(
+                  "Gerbang Pengendali Admin Madrasah",
+                  style: TextStyle(color: Colors.grey, fontSize: 13),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 32),
                 Form(
                   key: _formKey,
                   child: Column(
@@ -106,8 +123,12 @@ const SizedBox(height: 32),
                         keyboardType: TextInputType.emailAddress,
                         decoration: InputDecoration(
                           labelText: "Email",
-                          prefixIcon: const Icon(Icons.email_outlined),
+                          prefixIcon: const Icon(Icons.email_outlined, color: Color(0xFF102C57)),
                           border: OutlineInputBorder(borderRadius: BorderRadius.circular(15)),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(15),
+                            borderSide: const BorderSide(color: Color(0xFF102C57), width: 2),
+                          ),
                         ),
                       ),
                       const SizedBox(height: 16),
@@ -117,8 +138,12 @@ const SizedBox(height: 32),
                         obscureText: true,
                         decoration: InputDecoration(
                           labelText: "Password",
-                          prefixIcon: const Icon(Icons.lock_outline),
+                          prefixIcon: const Icon(Icons.lock_outline, color: Color(0xFF102C57)),
                           border: OutlineInputBorder(borderRadius: BorderRadius.circular(15)),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(15),
+                            borderSide: const BorderSide(color: Color(0xFF102C57), width: 2),
+                          ),
                         ),
                       ),
                     ],
@@ -131,7 +156,7 @@ const SizedBox(height: 32),
                   child: ElevatedButton(
                     onPressed: _isLoading ? null : _handleLogin,
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color.fromARGB(255, 16, 38, 185),
+                      backgroundColor: const Color(0xFF102C57),
                       foregroundColor: Colors.white,
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
                     ),
@@ -144,7 +169,7 @@ const SizedBox(height: 32),
                             strokeWidth: 2,
                           ),
                         )
-                      : const Text("MASUK SEKARANG", style: TextStyle(fontWeight: FontWeight.bold)),
+                      : const Text("MASUK SEKARANG", style: TextStyle(fontWeight: FontWeight.bold, letterSpacing: 1.1)),
                   ),
                 ),
               ],
@@ -155,4 +180,3 @@ const SizedBox(height: 32),
     );
   }
 }
-

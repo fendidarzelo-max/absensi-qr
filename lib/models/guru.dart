@@ -3,7 +3,9 @@ class Guru {
   final String nama;
   final String mapel;
   final String kelas;
-  final String status; // Hadir, Izin, Alpha, Sakit
+  final String status; // Hadir, Izin, Alpha, Sakit, Tidak Hadir
+  final String jabatan; // e.g. Guru Bidang, Wali Kelas, Kepala Sekolah
+  final String hakAkses; // e.g. Admin, Staf, Guru
 
   const Guru({
     required this.nip,
@@ -11,6 +13,8 @@ class Guru {
     required this.mapel,
     required this.kelas,
     required this.status,
+    this.jabatan = "Guru Mata Pelajaran",
+    this.hakAkses = "Guru",
   });
 
   Guru copyWith({
@@ -19,6 +23,8 @@ class Guru {
     String? mapel,
     String? kelas,
     String? status,
+    String? jabatan,
+    String? hakAkses,
   }) {
     return Guru(
       nip: nip ?? this.nip,
@@ -26,6 +32,8 @@ class Guru {
       mapel: mapel ?? this.mapel,
       kelas: kelas ?? this.kelas,
       status: status ?? this.status,
+      jabatan: jabatan ?? this.jabatan,
+      hakAkses: hakAkses ?? this.hakAkses,
     );
   }
 
@@ -36,6 +44,8 @@ class Guru {
       'mapel': mapel,
       'kelas': kelas,
       'status': status,
+      'jabatan': jabatan,
+      'hakAkses': hakAkses,
     };
   }
 
@@ -46,6 +56,8 @@ class Guru {
       mapel: json['mapel'] as String,
       kelas: json['kelas'] as String,
       status: json['status'] as String,
+      jabatan: json['jabatan'] as String? ?? "Guru Mata Pelajaran",
+      hakAkses: json['hakAkses'] as String? ?? "Guru",
     );
   }
 

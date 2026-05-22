@@ -1,8 +1,11 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
+import '../services/system_service.dart';
 
 class AbsensiQRPage extends StatefulWidget {
-  const AbsensiQRPage({super.key});
+  final bool isGuru;
+  const AbsensiQRPage({super.key, required this.isGuru});
 
   @override
   State<AbsensiQRPage> createState() => _AbsensiQRPageState();
@@ -13,8 +16,36 @@ class _AbsensiQRPageState extends State<AbsensiQRPage> {
   String _scanResult = "";
   bool _hasScanned = false;
   MobileScannerController? _scannerController;
+  final SystemService _systemService = SystemService();
+  final TextEditingController _simulateController = TextEditingController();
+  
+  // Simulation list for ease of testing
+  String? _selectedSimulateCode;
+
+  @override
+  void initState() {
+    super.initState();
+    // Register listener for peripheral status
+    _systemService.addListener(_onSystemStateChanged);
+  }
+
+  @override
+  void dispose() {
+    _systemService.removeListener(_onSystemStateChanged);
+    _scannerController?.dispose();
+    _simulateController.dispose();
+    super.dispose();
+  }
+
+  void _onSystemStateChanged() {
+    if (mounted) setState(() {});
+  }
 
   void _startScanning() {
+    if (!_systemService.isPeripheralConnected) {
+      _showErrorSnackBar("Scanner USB Terputus! Pastikan periferal terhubung.");
+      return;
+    }
     setState(() {
       _isScanning = true;
       _hasScanned = false;
@@ -39,6 +70,8 @@ class _AbsensiQRPageState extends State<AbsensiQRPage> {
       _scanResult = "";
       _hasScanned = false;
       _isScanning = false;
+      _selectedSimulateCode = null;
+      _simulateController.clear();
     });
   }
 
@@ -50,37 +83,85 @@ class _AbsensiQRPageState extends State<AbsensiQRPage> {
       if (barcode.rawValue != null) {
         _hasScanned = true;
         _scannerController?.stop();
-        
-        final String code = barcode.rawValue!;
-        // Parse QR code format: "Nama|Kelas" or just display the code
-        List<String> parts = code.split('|');
-        String displayText = parts.length >= 2 
-          ? "Berhasil!\n${parts[0]}\nKelas ${parts[1]}"
-          : "Berhasil!\n$code";
-        
-        setState(() {
-          _scanResult = displayText;
-        });
+        _processScan(barcode.rawValue!);
         break;
       }
     }
   }
 
-  @override
-  void dispose() {
-    _scannerController?.dispose();
-    super.dispose();
+  void _processScan(String code) {
+    // Record in global state
+    final success = _systemService.recordAttendance(code, widget.isGuru);
+    
+    setState(() {
+      _hasScanned = true;
+      _isScanning = false;
+      if (success) {
+        // Find name
+        String name = code;
+        if (widget.isGuru) {
+          final g = _systemService.guruList.firstWhere((element) => element.nip == code || element.nama == code);
+          name = g.nama;
+        } else {
+          final s = _systemService.siswaList.firstWhere((element) => element.nisn == code || element.nama == code);
+          name = s.nama;
+        }
+        _scanResult = "BERHASIL ABSEN!\n\nNama: $name\nID: $code\nStatus: Terdaftar";
+      } else {
+        if (!_systemService.isPeripheralConnected) {
+          _scanResult = "GAGAL!\n\nScanner USB Terputus.";
+        } else {
+          _scanResult = "GAGAL!\n\nID: $code\nTidak terdaftar di database.";
+        }
+      }
+    });
+  }
+
+  void _showErrorSnackBar(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: Colors.red,
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
+    final title = widget.isGuru ? "Absensi Scan Guru" : "Absensi Scan Murid";
+    final labelTipe = widget.isGuru ? "Guru / Staf" : "Siswa / Murid";
+    
+    // Available scan choices for simulator dropdown
+    final simulateChoices = widget.isGuru 
+      ? _systemService.guruList.map((g) => MapEntry(g.nip, "${g.nama} (${g.nip})")).toList()
+      : _systemService.siswaList.map((s) => MapEntry(s.nisn, "${s.nama} (${s.nisn})")).toList();
+
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAFC),
       appBar: AppBar(
-        backgroundColor: const Color(0xFF10B981),
+        backgroundColor: const Color(0xFF102C57),
         foregroundColor: Colors.white,
-        title: const Text("Absensi Siswa QR"),
+        title: Text(title),
         elevation: 0,
+        actions: [
+          // Connection simulation toggle directly in the UI
+          Row(
+            children: [
+              Text(
+                _systemService.isPeripheralConnected ? "Scanner Active" : "Scanner Off", 
+                style: const TextStyle(fontSize: 12),
+              ),
+              Switch(
+                value: _systemService.isPeripheralConnected,
+                activeColor: const Color(0xFF10B981),
+                inactiveThumbColor: Colors.red,
+                onChanged: (val) {
+                  _systemService.setPeripheralConnection(val);
+                },
+              ),
+            ],
+          ),
+        ],
       ),
       body: Center(
         child: SingleChildScrollView(
@@ -88,34 +169,108 @@ class _AbsensiQRPageState extends State<AbsensiQRPage> {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
+              // Peripheral Status Info
               Container(
-                width: 280,
-                height: 280,
+                width: 320,
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                margin: const EdgeInsets.only(bottom: 16),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(
+                    color: _systemService.isPeripheralConnected 
+                      ? const Color(0xFF10B981).withOpacity(0.3) 
+                      : Colors.red.withOpacity(0.3)
+                  ),
+                  boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 10)],
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 12,
+                      height: 12,
+                      decoration: BoxDecoration(
+                        color: _systemService.isPeripheralConnected ? const Color(0xFF10B981) : Colors.red,
+                        shape: BoxShape.circle,
+                        boxShadow: [
+                          BoxShadow(
+                            color: _systemService.isPeripheralConnected ? const Color(0xFF10B981) : Colors.red,
+                            blurRadius: 6,
+                            spreadRadius: 2,
+                          )
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        _systemService.isPeripheralConnected 
+                          ? "Hardware Scanner USB: Terhubung" 
+                          : "Hardware Scanner USB: Terputus",
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          color: _systemService.isPeripheralConnected ? const Color(0xFF102C57) : Colors.red,
+                          fontSize: 13,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 16),
+
+              // Scanning Container
+              Container(
+                width: 320,
+                height: 320,
                 decoration: BoxDecoration(
                   color: Colors.white,
                   borderRadius: BorderRadius.circular(24),
                   border: Border.all(color: Colors.grey.withOpacity(0.2)),
+                  boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 15)],
                 ),
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(24),
                   child: _isScanning
-                    ? MobileScanner(
-                        controller: _scannerController,
-                        onDetect: _onDetect,
+                    ? Stack(
+                        children: [
+                          MobileScanner(
+                            controller: _scannerController,
+                            onDetect: _onDetect,
+                          ),
+                          // High-tech scanning overlay
+                          Container(
+                            decoration: BoxDecoration(
+                              border: Border.all(color: const Color(0xFF102C57), width: 2),
+                            ),
+                          ),
+                          const Center(
+                            child: Icon(Icons.qr_code_scanner, size: 200, color: Colors.white24),
+                          ),
+                          // Simulated scanning animation line
+                          const _ScanningLine(),
+                        ],
                       )
                     : _scanResult.isNotEmpty
                       ? Center(
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              const Icon(Icons.check_circle, color: Color(0xFF10B981), size: 60),
-                              const SizedBox(height: 12),
-                              Text(
-                                _scanResult,
-                                textAlign: TextAlign.center,
-                                style: const TextStyle(fontSize: 16),
-                              ),
-                            ],
+                          child: Padding(
+                            padding: const EdgeInsets.all(24.0),
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(
+                                  _scanResult.contains("BERHASIL") ? Icons.check_circle : Icons.error, 
+                                  color: _scanResult.contains("BERHASIL") ? const Color(0xFF10B981) : Colors.red, 
+                                  size: 64,
+                                ),
+                                const SizedBox(height: 16),
+                                Text(
+                                  _scanResult,
+                                  textAlign: TextAlign.center,
+                                  style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+                                ),
+                              ],
+                            ),
                           ),
                         )
                       : const Center(
@@ -123,45 +278,178 @@ class _AbsensiQRPageState extends State<AbsensiQRPage> {
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
                               Icon(Icons.qr_code_scanner, size: 80, color: Colors.grey),
-                              SizedBox(height: 12),
-                              Text("Siap Memindai", style: TextStyle(color: Colors.grey)),
+                              SizedBox(height: 16),
+                              Text("Siap Memindai QR Code", style: TextStyle(color: Colors.grey, fontWeight: FontWeight.w500)),
+                              Text("Gunakan kamera atau simulasi di bawah", style: TextStyle(color: Colors.grey, fontSize: 11)),
                             ],
                           ),
                         ),
                 ),
               ),
-              const SizedBox(height: 32),
+              const SizedBox(height: 24),
+
+              // Scanning controls
               SizedBox(
-                width: 280,
+                width: 320,
                 height: 55,
                 child: ElevatedButton(
-                  onPressed: _isScanning 
-                    ? (_hasScanned ? null : () { _stopScanning(); _resetScan(); })
-                    : (_scanResult.isNotEmpty ? _resetScan : _startScanning),
+                  onPressed: !_systemService.isPeripheralConnected
+                    ? null
+                    : (_isScanning 
+                      ? (_hasScanned ? null : () { _stopScanning(); _resetScan(); })
+                      : (_scanResult.isNotEmpty ? _resetScan : _startScanning)),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF10B981),
+                    backgroundColor: const Color(0xFF102C57),
                     foregroundColor: Colors.white,
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
                   ),
                   child: Text(
                     _isScanning 
                       ? (_hasScanned ? "BERHASIL!" : "HENTIKAN") 
-                      : (_scanResult.isNotEmpty ? "SCAN ULANG" : "MULAI PEMINDAIAN"),
+                      : (_scanResult.isNotEmpty ? "SCAN ULANG" : "MULAI CAMERA PEMINDAIAN"),
                     style: const TextStyle(fontWeight: FontWeight.bold),
                   ),
                 ),
               ),
+              
+              const SizedBox(height: 32),
+
+              // Simulation Panel (Simulasi Scanner Hardware)
+              Container(
+                width: 320,
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: Colors.grey.withOpacity(0.15)),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Row(
+                      children: [
+                        Icon(Icons.terminal, size: 18, color: Color(0xFF102C57)),
+                        SizedBox(width: 8),
+                        Text(
+                          "Simulasi Scanner USB",
+                          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Color(0xFF102C57)),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      "Pilih $labelTipe untuk menyimulasikan pembacaan scan hardware secara langsung.",
+                      style: TextStyle(color: Colors.grey[600], fontSize: 11),
+                    ),
+                    const SizedBox(height: 16),
+
+                    DropdownButtonFormField<String>(
+                      isExpanded: true,
+                      value: _selectedSimulateCode,
+                      decoration: InputDecoration(
+                        labelText: "Pilih $labelTipe",
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                      ),
+                      items: simulateChoices.map((entry) => DropdownMenuItem(
+                        value: entry.key,
+                        child: Text(entry.value, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 13)),
+                      )).toList(),
+                      onChanged: (val) {
+                        setState(() {
+                          _selectedSimulateCode = val;
+                        });
+                      },
+                    ),
+                    const SizedBox(height: 16),
+
+                    SizedBox(
+                      width: double.infinity,
+                      height: 45,
+                      child: ElevatedButton(
+                        onPressed: _selectedSimulateCode == null || !_systemService.isPeripheralConnected
+                          ? null
+                          : () {
+                              _processScan(_selectedSimulateCode!);
+                            },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF10B981),
+                          foregroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                        ),
+                        child: const Text("KIRIM PEMINDAIAN SIMULASI", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
               if (_scanResult.isNotEmpty || _isScanning) ...[
                 const SizedBox(height: 16),
                 TextButton(
                   onPressed: _resetScan,
-                  child: const Text("Reset"),
+                  child: const Text("Reset Tampilan", style: TextStyle(color: Color(0xFF102C57), fontWeight: FontWeight.bold)),
                 ),
               ],
             ],
           ),
         ),
       ),
+    );
+  }
+}
+
+class _ScanningLine extends StatefulWidget {
+  const _ScanningLine();
+
+  @override
+  State<_ScanningLine> createState() => _ScanningLineState();
+}
+
+class _ScanningLineState extends State<_ScanningLine> with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+  late Animation<double> _animation;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      duration: const Duration(seconds: 2),
+      vsync: this,
+    )..repeat(reverse: true);
+    _animation = Tween<double>(begin: 0, end: 320).animate(_controller);
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _animation,
+      builder: (context, child) {
+        return Positioned(
+          top: _animation.value,
+          left: 0,
+          right: 0,
+          child: Container(
+            height: 3,
+            decoration: BoxDecoration(
+              color: Colors.red,
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.red.withOpacity(0.8),
+                  blurRadius: 8,
+                  spreadRadius: 2,
+                )
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 }
