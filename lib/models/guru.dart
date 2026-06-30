@@ -6,6 +6,10 @@ class Guru {
   final String status; // Hadir, Izin, Alpha, Sakit, Tidak Hadir
   final String jabatan; // e.g. Guru Bidang, Wali Kelas, Kepala Sekolah
   final String hakAkses; // e.g. Admin, Staf, Guru
+  final String agama;
+  final String jenisKelamin;
+  final String tanggalLahir;
+  final String pendidikanTerakhir;
 
   const Guru({
     required this.nip,
@@ -15,6 +19,10 @@ class Guru {
     required this.status,
     this.jabatan = "Guru Mata Pelajaran",
     this.hakAkses = "Guru",
+    this.agama = "",
+    this.jenisKelamin = "",
+    this.tanggalLahir = "",
+    this.pendidikanTerakhir = "",
   });
 
   Guru copyWith({
@@ -25,6 +33,10 @@ class Guru {
     String? status,
     String? jabatan,
     String? hakAkses,
+    String? agama,
+    String? jenisKelamin,
+    String? tanggalLahir,
+    String? pendidikanTerakhir,
   }) {
     return Guru(
       nip: nip ?? this.nip,
@@ -34,6 +46,10 @@ class Guru {
       status: status ?? this.status,
       jabatan: jabatan ?? this.jabatan,
       hakAkses: hakAkses ?? this.hakAkses,
+      agama: agama ?? this.agama,
+      jenisKelamin: jenisKelamin ?? this.jenisKelamin,
+      tanggalLahir: tanggalLahir ?? this.tanggalLahir,
+      pendidikanTerakhir: pendidikanTerakhir ?? this.pendidikanTerakhir,
     );
   }
 
@@ -46,6 +62,10 @@ class Guru {
       'status': status,
       'jabatan': jabatan,
       'hakAkses': hakAkses,
+      'agama': agama,
+      'jenisKelamin': jenisKelamin,
+      'tanggalLahir': tanggalLahir,
+      'pendidikanTerakhir': pendidikanTerakhir,
     };
   }
 
@@ -58,6 +78,10 @@ class Guru {
       status: json['status'] as String,
       jabatan: json['jabatan'] as String? ?? "Guru Mata Pelajaran",
       hakAkses: json['hakAkses'] as String? ?? "Guru",
+      agama: json['agama'] as String? ?? "",
+      jenisKelamin: json['jenisKelamin'] as String? ?? "",
+      tanggalLahir: json['tanggalLahir'] as String? ?? "",
+      pendidikanTerakhir: json['pendidikanTerakhir'] as String? ?? "",
     );
   }
 

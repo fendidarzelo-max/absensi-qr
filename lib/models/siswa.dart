@@ -10,6 +10,8 @@ class Siswa {
   final String kecamatan;
   final String kabupaten;
   final String provinsi;
+  final String rt;
+  final String rw;
   final String? fotoPath;
 
   const Siswa({
@@ -24,6 +26,8 @@ class Siswa {
     required this.kecamatan,
     required this.kabupaten,
     required this.provinsi,
+    required this.rt,
+    required this.rw,
     this.fotoPath,
   });
 
@@ -39,6 +43,8 @@ class Siswa {
     String? kecamatan,
     String? kabupaten,
     String? provinsi,
+    String? rt,
+    String? rw,
     String? fotoPath,
   }) {
     return Siswa(
@@ -53,7 +59,47 @@ class Siswa {
       kecamatan: kecamatan ?? this.kecamatan,
       kabupaten: kabupaten ?? this.kabupaten,
       provinsi: provinsi ?? this.provinsi,
+      rt: rt ?? this.rt,
+      rw: rw ?? this.rw,
       fotoPath: fotoPath ?? this.fotoPath,
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'nisn': nisn,
+      'nama': nama,
+      'kelas': kelas,
+      'ttl': ttl,
+      'alamat': alamat,
+      'namaOrtu': namaOrtu,
+      'namaIbu': namaIbu,
+      'desa': desa,
+      'kecamatan': kecamatan,
+      'kabupaten': kabupaten,
+      'provinsi': provinsi,
+      'rt': rt,
+      'rw': rw,
+      'fotoPath': fotoPath,
+    };
+  }
+
+  factory Siswa.fromJson(Map<String, dynamic> json) {
+    return Siswa(
+      nisn: json['nisn'] as String,
+      nama: json['nama'] as String,
+      kelas: json['kelas'] as String,
+      ttl: json['ttl'] as String? ?? "-",
+      alamat: json['alamat'] as String? ?? "-",
+      namaOrtu: json['namaOrtu'] as String? ?? "-",
+      namaIbu: json['namaIbu'] as String? ?? "-",
+      desa: json['desa'] as String? ?? "-",
+      kecamatan: json['kecamatan'] as String? ?? "-",
+      kabupaten: json['kabupaten'] as String? ?? "-",
+      provinsi: json['provinsi'] as String? ?? "-",
+      rt: json['rt'] as String? ?? "-",
+      rw: json['rw'] as String? ?? "-",
+      fotoPath: json['fotoPath'] as String?,
     );
   }
 }

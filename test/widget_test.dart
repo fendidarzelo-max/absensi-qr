@@ -71,6 +71,8 @@ test('Siswa copyWith works correctly', () {
         kecamatan: "Test Kec",
         kabupaten: "Test Kab",
         provinsi: "Test Prov",
+        rt: "01",
+        rw: "02",
       );
 
       final updated = siswa.copyWith(kelas: "XI-A");

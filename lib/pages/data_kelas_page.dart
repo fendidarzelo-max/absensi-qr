@@ -1,10 +1,16 @@
 import 'package:flutter/material.dart';
-import '../models/siswa.dart';
 import '../services/student_service.dart';
+import 'class_students_page.dart';
 
-class DataKelasPage extends StatelessWidget {
-  DataKelasPage({super.key});
+class DataKelasPage extends StatefulWidget {
+  final bool hideAppBar;
+  const DataKelasPage({super.key, this.hideAppBar = false});
 
+  @override
+  State<DataKelasPage> createState() => _DataKelasPageState();
+}
+
+class _DataKelasPageState extends State<DataKelasPage> {
   final StudentService _studentService = StudentService();
 
   List<String> _getKelasOptions() {
@@ -22,6 +28,76 @@ class DataKelasPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final bool isMobile = MediaQuery.of(context).size.width < 750;
+    final content = Padding(
+      padding: EdgeInsets.all(isMobile ? 16.0 : 24.0),
+      child: GridView.builder(
+        itemCount: _getKelasOptions().length,
+        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: isMobile ? 2 : 3,
+          crossAxisSpacing: 16,
+          mainAxisSpacing: 16,
+          childAspectRatio: isMobile ? 0.95 : 1.3,
+        ),
+        itemBuilder: (context, index) {
+          final namaKelas = _getKelasOptions()[index];
+          const waliPlaceholder = "-";
+          return Container(
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: Colors.grey.withValues(alpha: 0.1)),
+            ),
+            child: Material(
+              color: Colors.transparent,
+              child: InkWell(
+                onTap: () async {
+                  await Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => ClassStudentsPage(kelas: namaKelas),
+                    ),
+                  );
+                  // Refresh class options and counts when returning
+                  setState(() {});
+                },
+                borderRadius: BorderRadius.circular(20),
+                child: Padding(
+                  padding: EdgeInsets.all(isMobile ? 16 : 20),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF10B981).withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: const Icon(Icons.class_outlined, color: Color(0xFF10B981), size: 20),
+                      ),
+                      const Spacer(),
+                      Text(namaKelas, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                      const SizedBox(height: 2),
+                      Text("${_getJumlahSiswa(namaKelas)} Siswa", style: TextStyle(color: Colors.grey[600], fontSize: 13)),
+                      const SizedBox(height: 2),
+                      Text("Wali: $waliPlaceholder", style: TextStyle(color: Colors.grey[600], fontSize: 11)),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          );
+        },
+      ),
+    );
+
+    if (widget.hideAppBar) {
+      return Scaffold(
+        backgroundColor: const Color(0xFFF8FAFC),
+        body: content,
+      );
+    }
+
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAFC),
       appBar: AppBar(
@@ -30,50 +106,7 @@ class DataKelasPage extends StatelessWidget {
         title: const Text("Data Kelas"),
         elevation: 0,
       ),
-      body: Padding(
-        padding: const EdgeInsets.all(24.0),
-        child: GridView.builder(
-          itemCount: _getKelasOptions().length,
-          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: 2,
-            crossAxisSpacing: 16,
-            mainAxisSpacing: 16,
-            childAspectRatio: 1.2,
-          ),
-          itemBuilder: (context, index) {
-            final namaKelas = _getKelasOptions()[index];
-            const waliPlaceholder = "-";
-            return Container(
-
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: Colors.grey.withOpacity(0.1)),
-              ),
-              padding: const EdgeInsets.all(20),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(10),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF10B981).withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: const Icon(Icons.class_outlined, color: Color(0xFF10B981)),
-                  ),
-                  const Spacer(),
-                  Text(namaKelas, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
-                  Text("${_getJumlahSiswa(namaKelas)} Siswa", style: TextStyle(color: Colors.grey[600])),
-                  const SizedBox(height: 4),
-                  Text("Wali: $waliPlaceholder", style: TextStyle(color: Colors.grey[600], fontSize: 12)),
-                ],
-              ),
-            );
-          },
-        ),
-      ),
+      body: content,
     );
   }
 }
-

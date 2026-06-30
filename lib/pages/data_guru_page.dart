@@ -30,11 +30,11 @@ class _DataGuruPageState extends State<DataGuruPage> {
     final isEdit = guru != null;
     final nipController = TextEditingController(text: guru?.nip ?? "");
     final namaController = TextEditingController(text: guru?.nama ?? "");
-    final mapelController = TextEditingController(text: guru?.mapel ?? "");
-    final kelasController = TextEditingController(text: guru?.kelas ?? "X-A");
     final jabatanController = TextEditingController(text: guru?.jabatan ?? "Guru Mata Pelajaran");
-    String selectedStatus = guru?.status ?? "Tidak Hadir";
-    String selectedRole = guru?.hakAkses ?? "Guru";
+    final tanggalLahirController = TextEditingController(text: guru?.tanggalLahir ?? "");
+    final pendidikanController = TextEditingController(text: guru?.pendidikanTerakhir ?? "");
+    String selectedGender = (guru?.jenisKelamin != null && (guru!.jenisKelamin == "Laki-laki" || guru.jenisKelamin == "Perempuan")) ? guru.jenisKelamin : "Laki-laki";
+    String selectedAgama = (guru?.agama != null && ['Islam', 'Kristen', 'Katolik', 'Hindu', 'Buddha', 'Khonghucu', 'Lainnya'].contains(guru!.agama)) ? guru.agama : "Islam";
 
     final formKey = GlobalKey<FormState>();
 
@@ -103,27 +103,93 @@ class _DataGuruPageState extends State<DataGuruPage> {
                   ),
                   const SizedBox(height: 16),
 
-                  TextFormField(
-                    controller: mapelController,
-                    textCapitalization: TextCapitalization.words,
-                    decoration: InputDecoration(
-                      labelText: "Mata Pelajaran",
-                      prefixIcon: const Icon(Icons.book),
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                    ),
-                    validator: (val) => val == null || val.isEmpty ? "Mapel tidak boleh kosong" : null,
+                  // Jenis Kelamin & Agama
+                  Row(
+                    children: [
+                      Expanded(
+                        child: DropdownButtonFormField<String>(
+                          value: selectedGender,
+                          decoration: InputDecoration(
+                            labelText: "Jenis Kelamin",
+                            prefixIcon: const Icon(Icons.wc),
+                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                          ),
+                          items: const [
+                            DropdownMenuItem(value: "Laki-laki", child: Text("Laki-laki")),
+                            DropdownMenuItem(value: "Perempuan", child: Text("Perempuan")),
+                          ],
+                          onChanged: (val) => setModalState(() => selectedGender = val!),
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: DropdownButtonFormField<String>(
+                          value: selectedAgama,
+                          decoration: InputDecoration(
+                            labelText: "Agama",
+                            prefixIcon: const Icon(Icons.church),
+                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                          ),
+                          items: const [
+                            DropdownMenuItem(value: "Islam", child: Text("Islam")),
+                            DropdownMenuItem(value: "Kristen", child: Text("Kristen")),
+                            DropdownMenuItem(value: "Katolik", child: Text("Katolik")),
+                            DropdownMenuItem(value: "Hindu", child: Text("Hindu")),
+                            DropdownMenuItem(value: "Buddha", child: Text("Buddha")),
+                            DropdownMenuItem(value: "Khonghucu", child: Text("Khonghucu")),
+                            DropdownMenuItem(value: "Lainnya", child: Text("Lainnya")),
+                          ],
+                          onChanged: (val) => setModalState(() => selectedAgama = val!),
+                        ),
+                      ),
+                    ],
                   ),
                   const SizedBox(height: 16),
 
-                  TextFormField(
-                    controller: kelasController,
-                    textCapitalization: TextCapitalization.characters,
-                    decoration: InputDecoration(
-                      labelText: "Kelas Binaan / Tugas",
-                      prefixIcon: const Icon(Icons.class_outlined),
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                    ),
-                    validator: (val) => val == null || val.isEmpty ? "Kelas tidak boleh kosong" : null,
+                  // Tanggal Lahir & Pendidikan Terakhir
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextFormField(
+                          controller: tanggalLahirController,
+                          readOnly: true,
+                          decoration: InputDecoration(
+                            labelText: "Tanggal Lahir",
+                            prefixIcon: const Icon(Icons.calendar_today),
+                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                          ),
+                          onTap: () async {
+                            final DateTime? picked = await showDatePicker(
+                              context: context,
+                              initialDate: DateTime.now().subtract(const Duration(days: 365 * 30)),
+                              firstDate: DateTime(1950),
+                              lastDate: DateTime.now(),
+                            );
+                            if (picked != null) {
+                              setModalState(() {
+                                final months = [
+                                  "", "Januari", "Februari", "Maret", "April", "Mei", "Juni",
+                                  "Juli", "Agustus", "September", "Oktober", "November", "Desember"
+                                ];
+                                tanggalLahirController.text = "${picked.day} ${months[picked.month]} ${picked.year}";
+                              });
+                            }
+                          },
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: TextFormField(
+                          controller: pendidikanController,
+                          textCapitalization: TextCapitalization.words,
+                          decoration: InputDecoration(
+                            labelText: "Pendidikan Terakhir",
+                            prefixIcon: const Icon(Icons.school),
+                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                   const SizedBox(height: 16),
 
@@ -138,43 +204,6 @@ class _DataGuruPageState extends State<DataGuruPage> {
                   ),
                   const SizedBox(height: 16),
 
-                  Row(
-                    children: [
-                      Expanded(
-                        child: DropdownButtonFormField<String>(
-                          value: selectedRole,
-                          decoration: InputDecoration(
-                            labelText: "Hak Akses",
-                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                          ),
-                          items: const [
-                            DropdownMenuItem(value: "Admin", child: Text("Admin")),
-                            DropdownMenuItem(value: "Staf", child: Text("Staf")),
-                            DropdownMenuItem(value: "Guru", child: Text("Guru")),
-                          ],
-                          onChanged: (val) => setModalState(() => selectedRole = val!),
-                        ),
-                      ),
-                      const SizedBox(width: 16),
-                      Expanded(
-                        child: DropdownButtonFormField<String>(
-                          value: selectedStatus,
-                          decoration: InputDecoration(
-                            labelText: "Status Kehadiran",
-                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                          ),
-                          items: const [
-                            DropdownMenuItem(value: "Hadir", child: Text("Hadir")),
-                            DropdownMenuItem(value: "Izin", child: Text("Izin")),
-                            DropdownMenuItem(value: "Sakit", child: Text("Sakit")),
-                            DropdownMenuItem(value: "Alpha", child: Text("Alpha")),
-                            DropdownMenuItem(value: "Tidak Hadir", child: Text("Tidak Hadir")),
-                          ],
-                          onChanged: (val) => setModalState(() => selectedStatus = val!),
-                        ),
-                      ),
-                    ],
-                  ),
                   const SizedBox(height: 32),
 
                   SizedBox(
@@ -186,11 +215,15 @@ class _DataGuruPageState extends State<DataGuruPage> {
                           final newGuru = Guru(
                             nip: nipController.text,
                             nama: namaController.text,
-                            mapel: mapelController.text,
-                            kelas: kelasController.text,
-                            status: selectedStatus,
+                            mapel: guru?.mapel ?? "",
+                            kelas: guru?.kelas ?? "",
+                            status: guru?.status ?? "Tidak Hadir",
                             jabatan: jabatanController.text,
-                            hakAkses: selectedRole,
+                            hakAkses: guru?.hakAkses ?? "Guru",
+                            agama: selectedAgama,
+                            jenisKelamin: selectedGender,
+                            tanggalLahir: tanggalLahirController.text,
+                            pendidikanTerakhir: pendidikanController.text,
                           );
 
                           setState(() {
@@ -260,21 +293,6 @@ class _DataGuruPageState extends State<DataGuruPage> {
     );
   }
 
-  Color _getStatusColor(String status) {
-    switch (status) {
-      case "Hadir":
-        return const Color(0xFF10B981);
-      case "Izin":
-        return const Color(0xFFF59E0B);
-      case "Sakit":
-        return const Color(0xFFEF4444);
-      case "Alpha":
-        return const Color(0xFF6B7280);
-      default:
-        return Colors.blueGrey;
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -300,7 +318,7 @@ class _DataGuruPageState extends State<DataGuruPage> {
               decoration: BoxDecoration(
                 color: Colors.white,
                 borderRadius: BorderRadius.circular(15),
-                boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 10)],
+                boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.03), blurRadius: 10)],
               ),
               child: TextField(
                 onChanged: (val) => setState(() => _searchQuery = val),
@@ -317,73 +335,76 @@ class _DataGuruPageState extends State<DataGuruPage> {
                 ? const Center(child: Text("Tidak ada data guru", style: TextStyle(color: Colors.grey)))
                 : ListView.separated(
                     itemCount: _filteredGuru.length,
-                    separatorBuilder: (_, __) => const SizedBox(height: 12),
+                    separatorBuilder: (_, _) => const SizedBox(height: 12),
                     itemBuilder: (context, index) {
                       final guru = _filteredGuru[index];
                       return Container(
+                        padding: const EdgeInsets.all(16),
                         decoration: BoxDecoration(
                           color: Colors.white,
                           borderRadius: BorderRadius.circular(16),
-                          border: Border.all(color: Colors.grey.withOpacity(0.1)),
+                          border: Border.all(color: Colors.grey.withValues(alpha: 0.1)),
                         ),
-                        child: ListTile(
-                          leading: CircleAvatar(
-                            backgroundColor: const Color(0xFF102C57).withOpacity(0.1),
-                            child: Text(
-                              guru.nama.isNotEmpty ? guru.nama[0] : "?",
-                              style: const TextStyle(color: Color(0xFF102C57), fontWeight: FontWeight.bold),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            CircleAvatar(
+                              backgroundColor: const Color(0xFF102C57).withValues(alpha: 0.1),
+                              child: Text(
+                                guru.nama.isNotEmpty ? guru.nama[0] : "?",
+                                style: const TextStyle(color: Color(0xFF102C57), fontWeight: FontWeight.bold),
+                              ),
                             ),
-                          ),
-                          title: Text(guru.nama, style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF102C57))),
-                          subtitle: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text("NIP: ${guru.nip} • Kelas: ${guru.kelas}"),
-                              Text("Mapel: ${guru.mapel} • Jabatan: ${guru.jabatan}"),
-                              const SizedBox(height: 4),
-                              Row(
+                            const SizedBox(width: 16),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                                    decoration: BoxDecoration(
-                                      color: _getStatusColor(guru.status).withOpacity(0.1),
-                                      borderRadius: BorderRadius.circular(6),
-                                    ),
-                                    child: Text(
-                                      guru.status,
-                                      style: TextStyle(color: _getStatusColor(guru.status), fontSize: 10, fontWeight: FontWeight.bold),
+                                  Text(
+                                    guru.nama,
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 16,
+                                      color: Color(0xFF102C57),
                                     ),
                                   ),
-                                  const SizedBox(width: 8),
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                                    decoration: BoxDecoration(
-                                      color: Colors.blue.withOpacity(0.1),
-                                      borderRadius: BorderRadius.circular(6),
-                                    ),
-                                    child: Text(
-                                      "Akses: ${guru.hakAkses}",
-                                      style: const TextStyle(color: Colors.blue, fontSize: 10, fontWeight: FontWeight.bold),
-                                    ),
+                                  const SizedBox(height: 6),
+                                  Text(
+                                    "NIP: ${guru.nip} • Kelamin: ${guru.jenisKelamin.isNotEmpty ? guru.jenisKelamin : '-'} • Agama: ${guru.agama.isNotEmpty ? guru.agama : '-'}",
+                                    style: TextStyle(color: Colors.grey[700], fontSize: 13),
+                                  ),
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    "Lahir: ${guru.tanggalLahir.isNotEmpty ? guru.tanggalLahir : '-'} • Pend: ${guru.pendidikanTerakhir.isNotEmpty ? guru.pendidikanTerakhir : '-'}",
+                                    style: TextStyle(color: Colors.grey[700], fontSize: 13),
+                                  ),
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    "Jabatan: ${guru.jabatan}",
+                                    style: TextStyle(color: Colors.grey[700], fontSize: 13),
                                   ),
                                 ],
                               ),
-                            ],
-                          ),
-                          isThreeLine: true,
-                          trailing: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              IconButton(
-                                icon: const Icon(Icons.edit, color: Colors.blue),
-                                onPressed: () => _showFormGuru(context, guru: guru),
-                              ),
-                              IconButton(
-                                icon: const Icon(Icons.delete, color: Colors.red),
-                                onPressed: () => _confirmDelete(context, guru),
-                              ),
-                            ],
-                          ),
+                            ),
+                            const SizedBox(width: 8),
+                            Column(
+                              mainAxisAlignment: MainAxisAlignment.start,
+                              children: [
+                                IconButton(
+                                  constraints: const BoxConstraints(),
+                                  padding: const EdgeInsets.all(8),
+                                  icon: const Icon(Icons.edit, color: Colors.blue, size: 20),
+                                  onPressed: () => _showFormGuru(context, guru: guru),
+                                ),
+                                IconButton(
+                                  constraints: const BoxConstraints(),
+                                  padding: const EdgeInsets.all(8),
+                                  icon: const Icon(Icons.delete, color: Colors.red, size: 20),
+                                  onPressed: () => _confirmDelete(context, guru),
+                                ),
+                              ],
+                            ),
+                          ],
                         ),
                       );
                     },

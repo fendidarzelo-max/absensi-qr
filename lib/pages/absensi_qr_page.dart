@@ -1,7 +1,10 @@
-import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import '../services/system_service.dart';
+import '../models/siswa.dart';
+import '../models/guru.dart';
+
 
 class AbsensiQRPage extends StatefulWidget {
   final bool isGuru;
@@ -21,17 +24,40 @@ class _AbsensiQRPageState extends State<AbsensiQRPage> {
   
   // Simulation list for ease of testing
   String? _selectedSimulateCode;
+  int _selectedJam = 1;
+
+  final StringBuffer _scannerBuffer = StringBuffer();
+
+  bool _onGlobalKeyEvent(KeyEvent event) {
+    if (event is KeyDownEvent) {
+      if (event.logicalKey == LogicalKeyboardKey.enter) {
+        final scannedCode = _scannerBuffer.toString().trim();
+        if (scannedCode.isNotEmpty) {
+          _scannerBuffer.clear();
+          _processScan(scannedCode);
+        }
+      } else {
+        final char = event.character;
+        if (char != null && RegExp(r'[a-zA-Z0-9]').hasMatch(char)) {
+          _scannerBuffer.write(char);
+        }
+      }
+    }
+    return false;
+  }
 
   @override
   void initState() {
     super.initState();
     // Register listener for peripheral status
     _systemService.addListener(_onSystemStateChanged);
+    HardwareKeyboard.instance.addHandler(_onGlobalKeyEvent);
   }
 
   @override
   void dispose() {
     _systemService.removeListener(_onSystemStateChanged);
+    HardwareKeyboard.instance.removeHandler(_onGlobalKeyEvent);
     _scannerController?.dispose();
     _simulateController.dispose();
     super.dispose();
@@ -89,29 +115,58 @@ class _AbsensiQRPageState extends State<AbsensiQRPage> {
     }
   }
 
-  void _processScan(String code) {
-    // Record in global state
-    final success = _systemService.recordAttendance(code, widget.isGuru);
+  Future<void> _processScan(String code) async {
+    final cleanCode = code.trim();
     
+    // Check maximum hours/sessions allowed for class before recording attendance
+    if (!widget.isGuru) {
+      final s = _systemService.siswaList.firstWhere(
+        (element) => element.nisn.trim() == cleanCode || element.nama.trim().toLowerCase() == cleanCode.toLowerCase(),
+        orElse: () => Siswa(nisn: cleanCode, nama: cleanCode, kelas: "", ttl: "", alamat: "", namaOrtu: "", namaIbu: "", desa: "", kecamatan: "", kabupaten: "", provinsi: "", rt: "", rw: ""),
+      );
+      if (s.kelas.isNotEmpty) {
+        final maxHours = _systemService.getMaxHoursForKelas(s.kelas);
+        if (_selectedJam > maxHours) {
+          if (!mounted) return;
+          setState(() {
+            _hasScanned = true;
+            _isScanning = false;
+            _scanResult = "GAGAL!\n\nNama: ${s.nama}\nKelas: ${s.kelas}\nKelas ini hanya sampai Jam Ke-$maxHours.";
+          });
+          return;
+        }
+      }
+    }
+
+    // Record in global state
+    final success = await _systemService.recordAttendance(cleanCode, widget.isGuru, jamKe: _selectedJam);
+    
+    if (!mounted) return;
     setState(() {
       _hasScanned = true;
       _isScanning = false;
       if (success) {
         // Find name
-        String name = code;
+        String name = cleanCode;
         if (widget.isGuru) {
-          final g = _systemService.guruList.firstWhere((element) => element.nip == code || element.nama == code);
+          final g = _systemService.guruList.firstWhere(
+            (element) => element.nip.trim() == cleanCode || element.nama.trim().toLowerCase() == cleanCode.toLowerCase(),
+            orElse: () => Guru(nip: cleanCode, nama: cleanCode, mapel: "", kelas: "", status: ""),
+          );
           name = g.nama;
         } else {
-          final s = _systemService.siswaList.firstWhere((element) => element.nisn == code || element.nama == code);
+          final s = _systemService.siswaList.firstWhere(
+            (element) => element.nisn.trim() == cleanCode || element.nama.trim().toLowerCase() == cleanCode.toLowerCase(),
+            orElse: () => Siswa(nisn: cleanCode, nama: cleanCode, kelas: "", ttl: "", alamat: "", namaOrtu: "", namaIbu: "", desa: "", kecamatan: "", kabupaten: "", provinsi: "", rt: "", rw: ""),
+          );
           name = s.nama;
         }
-        _scanResult = "BERHASIL ABSEN!\n\nNama: $name\nID: $code\nStatus: Terdaftar";
+        _scanResult = "BERHASIL ABSEN!\n\nNama: $name\nID: $cleanCode\nStatus: Terdaftar";
       } else {
         if (!_systemService.isPeripheralConnected) {
           _scanResult = "GAGAL!\n\nScanner USB Terputus.";
         } else {
-          _scanResult = "GAGAL!\n\nID: $code\nTidak terdaftar di database.";
+          _scanResult = "GAGAL!\n\nID: $cleanCode\nTidak terdaftar di database.";
         }
       }
     });
@@ -131,11 +186,6 @@ class _AbsensiQRPageState extends State<AbsensiQRPage> {
     final title = widget.isGuru ? "Absensi Scan Guru" : "Absensi Scan Murid";
     final labelTipe = widget.isGuru ? "Guru / Staf" : "Siswa / Murid";
     
-    // Available scan choices for simulator dropdown
-    final simulateChoices = widget.isGuru 
-      ? _systemService.guruList.map((g) => MapEntry(g.nip, "${g.nama} (${g.nip})")).toList()
-      : _systemService.siswaList.map((s) => MapEntry(s.nisn, "${s.nama} (${s.nisn})")).toList();
-
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAFC),
       appBar: AppBar(
@@ -153,7 +203,7 @@ class _AbsensiQRPageState extends State<AbsensiQRPage> {
               ),
               Switch(
                 value: _systemService.isPeripheralConnected,
-                activeColor: const Color(0xFF10B981),
+                activeThumbColor: const Color(0xFF10B981),
                 inactiveThumbColor: Colors.red,
                 onChanged: (val) {
                   _systemService.setPeripheralConnection(val);
@@ -179,10 +229,10 @@ class _AbsensiQRPageState extends State<AbsensiQRPage> {
                   borderRadius: BorderRadius.circular(16),
                   border: Border.all(
                     color: _systemService.isPeripheralConnected 
-                      ? const Color(0xFF10B981).withOpacity(0.3) 
-                      : Colors.red.withOpacity(0.3)
+                      ? const Color(0xFF10B981).withValues(alpha: 0.3) 
+                      : Colors.red.withValues(alpha: 0.3)
                   ),
-                  boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 10)],
+                  boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.02), blurRadius: 10)],
                 ),
                 child: Row(
                   children: [
@@ -219,6 +269,57 @@ class _AbsensiQRPageState extends State<AbsensiQRPage> {
               ),
               const SizedBox(height: 16),
 
+              // Jam Absensi selector (only for students, since isGuru doesn't have it)
+              if (!widget.isGuru) ...[
+                const Text(
+                  "Pilih Sesi Jam Absensi:",
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFF102C57),
+                    fontSize: 13,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Container(
+                  padding: const EdgeInsets.all(4),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.grey.withValues(alpha: 0.15)),
+                    boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.01), blurRadius: 10)],
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [1, 2, 3].map((jam) {
+                      final isSelected = _selectedJam == jam;
+                      return GestureDetector(
+                        onTap: () {
+                          setState(() {
+                            _selectedJam = jam;
+                          });
+                        },
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+                          decoration: BoxDecoration(
+                            color: isSelected ? const Color(0xFF102C57) : Colors.transparent,
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Text(
+                            "Jam Ke-$jam",
+                            style: TextStyle(
+                              color: isSelected ? Colors.white : Colors.black87,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ),
+                      );
+                    }).toList(),
+                  ),
+                ),
+                const SizedBox(height: 20),
+              ],
+
               // Scanning Container
               Container(
                 width: 320,
@@ -226,8 +327,8 @@ class _AbsensiQRPageState extends State<AbsensiQRPage> {
                 decoration: BoxDecoration(
                   color: Colors.white,
                   borderRadius: BorderRadius.circular(24),
-                  border: Border.all(color: Colors.grey.withOpacity(0.2)),
-                  boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 15)],
+                  border: Border.all(color: Colors.grey.withValues(alpha: 0.2)),
+                  boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 15)],
                 ),
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(24),
@@ -321,7 +422,7 @@ class _AbsensiQRPageState extends State<AbsensiQRPage> {
                 decoration: BoxDecoration(
                   color: Colors.white,
                   borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: Colors.grey.withOpacity(0.15)),
+                  border: Border.all(color: Colors.grey.withValues(alpha: 0.15)),
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -343,22 +444,17 @@ class _AbsensiQRPageState extends State<AbsensiQRPage> {
                     ),
                     const SizedBox(height: 16),
 
-                    DropdownButtonFormField<String>(
-                      isExpanded: true,
-                      value: _selectedSimulateCode,
+                    TextField(
+                      controller: _simulateController,
+                      keyboardType: TextInputType.number,
                       decoration: InputDecoration(
-                        labelText: "Pilih $labelTipe",
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                        labelText: widget.isGuru ? "Masukkan NIP Guru" : "Masukkan NISN Siswa",
+                        hintText: widget.isGuru ? "Contoh: 19850101201001" : "Contoh: 009822314",
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
                         border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
                       ),
-                      items: simulateChoices.map((entry) => DropdownMenuItem(
-                        value: entry.key,
-                        child: Text(entry.value, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 13)),
-                      )).toList(),
                       onChanged: (val) {
-                        setState(() {
-                          _selectedSimulateCode = val;
-                        });
+                        setState(() {});
                       },
                     ),
                     const SizedBox(height: 16),
@@ -367,10 +463,10 @@ class _AbsensiQRPageState extends State<AbsensiQRPage> {
                       width: double.infinity,
                       height: 45,
                       child: ElevatedButton(
-                        onPressed: _selectedSimulateCode == null || !_systemService.isPeripheralConnected
+                        onPressed: _simulateController.text.trim().isEmpty || !_systemService.isPeripheralConnected
                           ? null
                           : () {
-                              _processScan(_selectedSimulateCode!);
+                              _processScan(_simulateController.text.trim());
                             },
                         style: ElevatedButton.styleFrom(
                           backgroundColor: const Color(0xFF10B981),
@@ -441,7 +537,7 @@ class _ScanningLineState extends State<_ScanningLine> with SingleTickerProviderS
               color: Colors.red,
               boxShadow: [
                 BoxShadow(
-                  color: Colors.red.withOpacity(0.8),
+                  color: Colors.red.withValues(alpha: 0.8),
                   blurRadius: 8,
                   spreadRadius: 2,
                 )
