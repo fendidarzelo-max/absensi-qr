@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "549175691785",
+    "project_id": "aplikasi-absensi-707c0",
+    "storage_bucket": "aplikasi-absensi-707c0.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:549175691785:android:ca11f911b3b79294d046d8",
+        "android_client_info": {
+          "package_name": "com.Fendy_crew.integration_test_example"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBEcap93faocZYkHYCNX36Jy26UYII3P_I"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
