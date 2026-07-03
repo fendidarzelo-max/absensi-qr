@@ -131,7 +131,7 @@ class _AbsensiQRPageState extends State<AbsensiQRPage> {
           setState(() {
             _hasScanned = true;
             _isScanning = false;
-            _scanResult = "GAGAL!\n\nNama: ${s.nama}\nKelas: ${s.kelas}\nKelas ini hanya sampai Jam Ke-$maxHours.";
+            _scanResult = "GAGAL!\n\nNama: ${s.nama}\nKelas: ${s.kelasDisplay}\nKelas ini hanya sampai Jam Ke-$maxHours.";
           });
           return;
         }
@@ -154,14 +154,15 @@ class _AbsensiQRPageState extends State<AbsensiQRPage> {
             orElse: () => Guru(nip: cleanCode, nama: cleanCode, mapel: "", kelas: "", status: ""),
           );
           name = g.nama;
+          _scanResult = "BERHASIL ABSEN GURU!\n\nNama: $name\nStatus: Terdaftar";
         } else {
           final s = _systemService.siswaList.firstWhere(
             (element) => element.nisn.trim() == cleanCode || element.nama.trim().toLowerCase() == cleanCode.toLowerCase(),
             orElse: () => Siswa(nisn: cleanCode, nama: cleanCode, kelas: "", ttl: "", alamat: "", namaOrtu: "", namaIbu: "", desa: "", kecamatan: "", kabupaten: "", provinsi: "", rt: "", rw: ""),
           );
           name = s.nama;
+          _scanResult = "BERHASIL ABSEN!\n\nNama: $name\nKelas: ${s.kelasDisplay}\nID: $cleanCode\nStatus: Terdaftar";
         }
-        _scanResult = "BERHASIL ABSEN!\n\nNama: $name\nID: $cleanCode\nStatus: Terdaftar";
       } else {
         if (!_systemService.isPeripheralConnected) {
           _scanResult = "GAGAL!\n\nScanner USB Terputus.";

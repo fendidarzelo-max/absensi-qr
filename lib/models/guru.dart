@@ -10,6 +10,7 @@ class Guru {
   final String jenisKelamin;
   final String tanggalLahir;
   final String pendidikanTerakhir;
+  final String? jadwalMengajar;
 
   const Guru({
     required this.nip,
@@ -23,6 +24,7 @@ class Guru {
     this.jenisKelamin = "",
     this.tanggalLahir = "",
     this.pendidikanTerakhir = "",
+    this.jadwalMengajar,
   });
 
   Guru copyWith({
@@ -37,6 +39,7 @@ class Guru {
     String? jenisKelamin,
     String? tanggalLahir,
     String? pendidikanTerakhir,
+    String? jadwalMengajar,
   }) {
     return Guru(
       nip: nip ?? this.nip,
@@ -50,6 +53,7 @@ class Guru {
       jenisKelamin: jenisKelamin ?? this.jenisKelamin,
       tanggalLahir: tanggalLahir ?? this.tanggalLahir,
       pendidikanTerakhir: pendidikanTerakhir ?? this.pendidikanTerakhir,
+      jadwalMengajar: jadwalMengajar ?? this.jadwalMengajar,
     );
   }
 
@@ -66,6 +70,7 @@ class Guru {
       'jenisKelamin': jenisKelamin,
       'tanggalLahir': tanggalLahir,
       'pendidikanTerakhir': pendidikanTerakhir,
+      'jadwal_mengajar': jadwalMengajar,
     };
   }
 
@@ -82,6 +87,7 @@ class Guru {
       jenisKelamin: json['jenisKelamin'] as String? ?? "",
       tanggalLahir: json['tanggalLahir'] as String? ?? "",
       pendidikanTerakhir: json['pendidikanTerakhir'] as String? ?? "",
+      jadwalMengajar: json['jadwal_mengajar'] as String?,
     );
   }
 

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'dart:async';
 import 'package:http/http.dart' as http;
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../services/system_service.dart';
 
 class IdentitasSekolahPage extends StatefulWidget {
@@ -60,15 +61,28 @@ class _IdentitasSekolahPageState extends State<IdentitasSekolahPage> with Single
     
     final stopwatch = Stopwatch()..start();
     try {
-      final response = await http
-          .get(Uri.parse('${_systemService.baseUrl}/get_school_identity.php'))
-          .timeout(const Duration(seconds: 3));
-      stopwatch.stop();
-      if (mounted) {
-        setState(() {
-          _isServerConnected = response.statusCode == 200;
-          _pingLatency = stopwatch.elapsedMilliseconds;
-        });
+      if (_systemService.isFirebaseAvailable) {
+        // Ping Firebase Firestore by getting metadata/school doc
+        await FirebaseFirestore.instance.collection('metadata').doc('school').get().timeout(const Duration(seconds: 3));
+        stopwatch.stop();
+        if (mounted) {
+          setState(() {
+            _isServerConnected = true;
+            _pingLatency = stopwatch.elapsedMilliseconds;
+          });
+        }
+      } else {
+        // Fallback to local server ping
+        final response = await http
+            .get(Uri.parse('${_systemService.baseUrl}/get_school_identity.php'))
+            .timeout(const Duration(seconds: 3));
+        stopwatch.stop();
+        if (mounted) {
+          setState(() {
+            _isServerConnected = response.statusCode == 200;
+            _pingLatency = stopwatch.elapsedMilliseconds;
+          });
+        }
       }
     } catch (_) {
       stopwatch.stop();
@@ -230,19 +244,7 @@ class _IdentitasSekolahPageState extends State<IdentitasSekolahPage> with Single
                   ),
                   const SizedBox(height: 20),
 
-                  TextFormField(
-                    initialValue: _systemService.ipAddress,
-                    decoration: InputDecoration(
-                      labelText: "Alamat IP/Domain Server Database",
-                      helperText: "Gunakan 'localhost' (Web/Windows), '10.0.2.2' (Emulator Android), atau IP lokal Anda (misal: 192.168.1.10)",
-                      prefixIcon: const Icon(Icons.dns),
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                    ),
-                    onChanged: (val) {
-                      _systemService.setCustomIp(val);
-                    },
-                  ),
-                  const SizedBox(height: 32),
+
 
                   SizedBox(
                     width: double.infinity,
@@ -302,9 +304,11 @@ class _IdentitasSekolahPageState extends State<IdentitasSekolahPage> with Single
                   ],
                 ),
                 const SizedBox(height: 6),
-                const Text(
-                  "Status koneksi aplikasi ke server database XAMPP",
-                  style: TextStyle(fontSize: 12, color: Colors.grey),
+                Text(
+                  _systemService.isFirebaseAvailable 
+                      ? "Status koneksi aplikasi ke Firebase Cloud Database"
+                      : "Status koneksi aplikasi ke server database online",
+                  style: const TextStyle(fontSize: 12, color: Colors.grey),
                 ),
                 const SizedBox(height: 24),
 
@@ -358,7 +362,9 @@ class _IdentitasSekolahPageState extends State<IdentitasSekolahPage> with Single
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              _isServerConnected ? "KONEKSI AKTIF (ONLINE)" : "KONEKSI TERPUTUS (OFFLINE)",
+                              _isServerConnected 
+                                  ? (_systemService.isFirebaseAvailable ? "KONEKSI FIREBASE AKTIF" : "KONEKSI AKTIF (ONLINE)") 
+                                  : "KONEKSI TERPUTUS (OFFLINE)",
                               style: TextStyle(
                                 fontWeight: FontWeight.bold,
                                 fontSize: 13,
@@ -368,8 +374,8 @@ class _IdentitasSekolahPageState extends State<IdentitasSekolahPage> with Single
                             const SizedBox(height: 2),
                             Text(
                               _isServerConnected 
-                                  ? "Terhubung ke database MySQL"
-                                  : "Server MySQL / XAMPP tidak merespon",
+                                  ? (_systemService.isFirebaseAvailable ? "Terhubung ke Firebase Cloud Firestore" : "Terhubung ke database online")
+                                  : (_systemService.isFirebaseAvailable ? "Database Firebase tidak merespon" : "Server database online tidak merespon"),
                               style: TextStyle(
                                 fontSize: 11,
                                 color: _isServerConnected ? const Color(0xFF065F46) : const Color(0xFF991B1B),
@@ -405,8 +411,10 @@ class _IdentitasSekolahPageState extends State<IdentitasSekolahPage> with Single
                   style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Color(0xFF102C57)),
                 ),
                 const SizedBox(height: 12),
-                _buildDiagnosticRow("IP Server Database", _systemService.ipAddress, Icons.dns),
-                _buildDiagnosticRow("Base API URL", _systemService.baseUrl, Icons.link),
+                if (!_systemService.isFirebaseAvailable) ...[
+                  _buildDiagnosticRow("IP Server Database", _systemService.ipAddress, Icons.dns),
+                  _buildDiagnosticRow("Base API URL", _systemService.baseUrl, Icons.link),
+                ],
                 _buildDiagnosticRow("Metode Sinkronisasi", "Auto Polling (5 Detik)", Icons.sync_alt),
                 const SizedBox(height: 24),
 

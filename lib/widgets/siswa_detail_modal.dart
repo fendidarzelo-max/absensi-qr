@@ -46,7 +46,7 @@ class SiswaDetailModal {
             ),
             const SizedBox(height: 4),
             Text(
-              "Kelas ${siswa.kelas}",
+              "Kelas ${siswa.kelasDisplay}",
               style: TextStyle(fontSize: 16, color: Colors.grey[600]),
             ),
             const SizedBox(height: 32),

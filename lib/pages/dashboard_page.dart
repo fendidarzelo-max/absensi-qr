@@ -1,7 +1,9 @@
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'dart:async';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import '../services/system_service.dart';
 import 'absensi_qr_page.dart';
 import 'cetak_qr_page.dart';
@@ -12,6 +14,7 @@ import 'identitas_sekolah_page.dart';
 import 'kartu_pelajar_page.dart';
 import 'hari_libur_page.dart';
 import 'login_page.dart';
+import 'absensi_usb_page.dart';
 
 class DashboardPage extends StatefulWidget {
   const DashboardPage({super.key});
@@ -23,6 +26,7 @@ class DashboardPage extends StatefulWidget {
 class _DashboardPageState extends State<DashboardPage> {
   final SystemService _systemService = SystemService();
   int _currentMenuIndex = 0;
+  bool _isGuruAttendanceUnlocked = false;
   late Timer _clockTimer;
   String _timeString = "";
   String _dateString = "";
@@ -148,6 +152,15 @@ class _DashboardPageState extends State<DashboardPage> {
     );
   }
 
+  void _changeMenu(int index) {
+    setState(() {
+      if (index != 2) {
+        _isGuruAttendanceUnlocked = false;
+      }
+      _currentMenuIndex = index;
+    });
+  }
+
   Widget _buildActiveBody() {
     switch (_currentMenuIndex) {
       case 0:
@@ -155,6 +168,16 @@ class _DashboardPageState extends State<DashboardPage> {
       case 1:
         return const AbsensiQRPage(isGuru: false);
       case 2:
+        if (!_isGuruAttendanceUnlocked) {
+          return PasswordLockScreen(
+            systemService: _systemService,
+            onUnlockSuccess: () {
+              setState(() {
+                _isGuruAttendanceUnlocked = true;
+              });
+            },
+          );
+        }
         return const AbsensiQRPage(isGuru: true);
       case 3:
         return const CetakQRPage();
@@ -170,6 +193,8 @@ class _DashboardPageState extends State<DashboardPage> {
         return const HariLiburPage();
       case 9:
         return const IdentitasSekolahPage();
+      case 10:
+        return const AbsensiUsbPage();
       default:
         return _buildDashboardContent();
     }
@@ -256,6 +281,7 @@ class _DashboardPageState extends State<DashboardPage> {
       {"icon": Icons.credit_card, "label": "Cetak ID Card"},
       {"icon": Icons.calendar_month, "label": "Hari Libur"},
       {"icon": Icons.settings, "label": "Identitas Sekolah"},
+      {"icon": Icons.usb, "label": "Absensi USB Scanner"},
     ];
 
     return Padding(
@@ -302,67 +328,82 @@ class _DashboardPageState extends State<DashboardPage> {
           ),
           const SizedBox(height: 20),
 
-          // Admin Profile Card in Sidebar (Static)
-          Container(
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.08),
+          // Admin Profile Card in Sidebar (Interactive)
+          Material(
+            color: Colors.transparent,
+            child: InkWell(
+              onTap: () => _showEditAdminProfileDialog(context),
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
-            ),
-            child: Row(
-              children: [
-                CircleAvatar(
-                  radius: 18,
-                  backgroundColor: Colors.white24,
-                  backgroundImage: _systemService.adminFoto.isNotEmpty
-                      ? ((_systemService.adminFoto.startsWith('http://') ||
-                                _systemService.adminFoto.startsWith(
-                                  'https://',
-                                ))
-                            ? NetworkImage(_systemService.adminFoto)
-                            : (_systemService.adminFotoBytes != null
-                                  ? MemoryImage(
-                                      _systemService.adminFotoBytes!,
-                                    )
-                                  : null))
-                      : null,
-                  child: _systemService.adminFoto.isEmpty
-                      ? const Icon(
-                          Icons.person,
-                          color: Colors.white,
-                          size: 18,
-                        )
-                      : null,
+              child: Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.08),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
                 ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        _systemService.displayName,
-                        style: const TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 12,
-                          color: Colors.white,
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
+                child: Row(
+                  children: [
+                    CircleAvatar(
+                      radius: 18,
+                      backgroundColor: Colors.white24,
+                      backgroundImage: _systemService.adminFoto.isNotEmpty
+                          ? ((_systemService.adminFoto.startsWith('http://') ||
+                                    _systemService.adminFoto.startsWith(
+                                      'https://',
+                                    ))
+                                ? NetworkImage(_systemService.adminFoto)
+                                : (_systemService.adminFotoBytes != null
+                                      ? MemoryImage(
+                                          _systemService.adminFotoBytes!,
+                                        )
+                                      : null))
+                          : null,
+                      child: _systemService.adminFoto.isEmpty
+                          ? const Icon(
+                              Icons.person,
+                              color: Colors.white,
+                              size: 18,
+                            )
+                          : null,
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  _systemService.displayName,
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 12,
+                                    color: Colors.white,
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                              const SizedBox(width: 4),
+                              const Icon(Icons.edit, size: 10, color: Colors.white70),
+                            ],
+                          ),
+                          Text(
+                            _systemService.adminRole,
+                            style: const TextStyle(
+                              fontSize: 10,
+                              color: Colors.white70,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ],
                       ),
-                      Text(
-                        _systemService.adminRole,
-                        style: const TextStyle(
-                          fontSize: 10,
-                          color: Colors.white70,
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
-              ],
+              ),
             ),
           ),
           const SizedBox(height: 24),
@@ -404,9 +445,7 @@ class _DashboardPageState extends State<DashboardPage> {
                       if (isDrawer) {
                         Navigator.pop(context);
                       }
-                      setState(() {
-                        _currentMenuIndex = index;
-                      });
+                      _changeMenu(index);
                     },
                   ),
                 );
@@ -489,33 +528,49 @@ class _DashboardPageState extends State<DashboardPage> {
               ? Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Row(
-                      children: [
-                        _buildAdminAvatar(radius: 24),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                "Selamat Datang, ${_systemService.displayName}",
-                                style: const TextStyle(
-                                  fontSize: 20,
-                                  fontWeight: FontWeight.bold,
-                                  color: Color(0xFF102C57),
-                                ),
+                    InkWell(
+                      onTap: () => _showEditAdminProfileDialog(context),
+                      borderRadius: BorderRadius.circular(12),
+                      child: Padding(
+                        padding: const EdgeInsets.all(4.0),
+                        child: Row(
+                          children: [
+                            _buildAdminAvatar(radius: 24),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    children: [
+                                      Expanded(
+                                        child: Text(
+                                          "Selamat Datang, ${_systemService.displayName}",
+                                          style: const TextStyle(
+                                            fontSize: 20,
+                                            fontWeight: FontWeight.bold,
+                                            color: Color(0xFF102C57),
+                                          ),
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 4),
+                                      const Icon(Icons.edit, size: 16, color: Color(0xFF102C57)),
+                                    ],
+                                  ),
+                                  Text(
+                                    _systemService.adminRole,
+                                    style: const TextStyle(
+                                      fontSize: 12,
+                                      color: Colors.grey,
+                                    ),
+                                  ),
+                                ],
                               ),
-                              Text(
-                                _systemService.adminRole,
-                                style: const TextStyle(
-                                  fontSize: 12,
-                                  color: Colors.grey,
-                                ),
-                              ),
-                            ],
-                          ),
+                            ),
+                          ],
                         ),
-                      ],
+                      ),
                     ),
                     const SizedBox(height: 16),
                     Container(
@@ -566,33 +621,49 @@ class _DashboardPageState extends State<DashboardPage> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Expanded(
-                      child: Row(
-                        children: [
-                          _buildAdminAvatar(radius: 28),
-                          const SizedBox(width: 16),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  "Selamat Datang, ${_systemService.displayName}",
-                                  style: const TextStyle(
-                                    fontSize: 22,
-                                    fontWeight: FontWeight.bold,
-                                    color: Color(0xFF102C57),
-                                  ),
+                      child: InkWell(
+                        onTap: () => _showEditAdminProfileDialog(context),
+                        borderRadius: BorderRadius.circular(12),
+                        child: Padding(
+                          padding: const EdgeInsets.all(4.0),
+                          child: Row(
+                            children: [
+                              _buildAdminAvatar(radius: 28),
+                              const SizedBox(width: 16),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Row(
+                                      children: [
+                                        Expanded(
+                                          child: Text(
+                                            "Selamat Datang, ${_systemService.displayName}",
+                                            style: const TextStyle(
+                                              fontSize: 22,
+                                              fontWeight: FontWeight.bold,
+                                              color: Color(0xFF102C57),
+                                            ),
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
+                                        ),
+                                        const SizedBox(width: 6),
+                                        const Icon(Icons.edit, size: 18, color: Color(0xFF102C57)),
+                                      ],
+                                    ),
+                                    Text(
+                                      _systemService.adminRole,
+                                      style: const TextStyle(
+                                        fontSize: 13,
+                                        color: Colors.grey,
+                                      ),
+                                    ),
+                                  ],
                                 ),
-                                Text(
-                                  _systemService.adminRole,
-                                  style: const TextStyle(
-                                    fontSize: 13,
-                                    color: Colors.grey,
-                                  ),
-                                ),
-                              ],
-                            ),
+                              ),
+                            ],
                           ),
-                        ],
+                        ),
                       ),
                     ),
                     Container(
@@ -743,9 +814,7 @@ class _DashboardPageState extends State<DashboardPage> {
               ),
               TextButton(
                 onPressed: () {
-                  setState(() {
-                    _currentMenuIndex = 6; // Go to Rekap Laporan
-                  });
+                  _changeMenu(6); // Go to Rekap Laporan
                 },
                 child: const Text(
                   "Lihat Semua",
@@ -1030,8 +1099,12 @@ class _DashboardPageState extends State<DashboardPage> {
           ),
           const SizedBox(height: 20),
 
-          // Database engine label
-          _buildDiagnosticRow("Database Engine", "MySQL (Server)"),
+          _buildDiagnosticRow(
+            "Database Engine",
+            _systemService.isFirebaseAvailable
+                ? "Firebase Cloud Firestore"
+                : "Database Lokal",
+          ),
           const Divider(height: 24),
 
           // Peripheral status label with glow circle
@@ -1388,7 +1461,7 @@ class _DashboardPageState extends State<DashboardPage> {
                                                 overflow: TextOverflow.ellipsis,
                                               ),
                                               Text(
-                                                "Kelas ${siswa.kelas} • NISN ${siswa.nisn}",
+                                                "Kelas ${siswa.kelasDisplay} • NISN ${siswa.nisn}",
                                                 style: const TextStyle(
                                                   fontSize: 11,
                                                   color: Colors.grey,
@@ -1630,6 +1703,437 @@ class _DashboardPageState extends State<DashboardPage> {
           ),
         ),
       ],
+    );
+  }
+
+  void _showEditAdminProfileDialog(BuildContext context) {
+    final nameController = TextEditingController(text: _systemService.adminName);
+    
+    String? localBase64Foto = _systemService.adminFoto.startsWith('http') ? "" : _systemService.adminFoto;
+    Uint8List? localFotoBytes = _systemService.adminFotoBytes;
+    bool isSaving = false;
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            
+            Future<void> pickNewImage(ImageSource source) async {
+              final ImagePicker picker = ImagePicker();
+              try {
+                final XFile? image = await picker.pickImage(
+                  source: source,
+                  maxWidth: 500,
+                  maxHeight: 500,
+                );
+                if (image != null) {
+                  final bytes = await image.readAsBytes();
+                  final b64 = base64Encode(bytes);
+                  setModalState(() {
+                    localBase64Foto = b64;
+                    localFotoBytes = bytes;
+                  });
+                }
+              } catch (e) {
+                debugPrint("Gagal memilih gambar: $e");
+              }
+            }
+
+            void showPhotoOptions() {
+              showModalBottomSheet(
+                context: context,
+                builder: (ctx) => Container(
+                  padding: const EdgeInsets.all(24),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Text(
+                        "Pilih Foto Profil Baru",
+                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF102C57)),
+                      ),
+                      const SizedBox(height: 20),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                        children: [
+                          InkWell(
+                            onTap: () {
+                              Navigator.pop(ctx);
+                              pickNewImage(ImageSource.camera);
+                            },
+                            child: Column(
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.all(16),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFF102C57).withValues(alpha: 0.08),
+                                    shape: BoxShape.circle,
+                                  ),
+                                  child: const Icon(Icons.camera_alt, color: Color(0xFF102C57), size: 30),
+                                ),
+                                const SizedBox(height: 8),
+                                const Text("Kamera", style: TextStyle(fontWeight: FontWeight.w600, fontSize: 12)),
+                              ],
+                            ),
+                          ),
+                          InkWell(
+                            onTap: () {
+                              Navigator.pop(ctx);
+                              pickNewImage(ImageSource.gallery);
+                            },
+                            child: Column(
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.all(16),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFF102C57).withValues(alpha: 0.08),
+                                    shape: BoxShape.circle,
+                                  ),
+                                  child: const Icon(Icons.photo_library, color: Color(0xFF102C57), size: 30),
+                                ),
+                                const SizedBox(height: 8),
+                                const Text("Galeri", style: TextStyle(fontWeight: FontWeight.w600, fontSize: 12)),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                    ],
+                  ),
+                ),
+              );
+            }
+
+            return AlertDialog(
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+              title: Row(
+                children: [
+                  const Icon(Icons.manage_accounts, color: Color(0xFF102C57)),
+                  const SizedBox(width: 10),
+                  const Text(
+                    "Ubah Profil Admin",
+                    style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF102C57)),
+                  ),
+                ],
+              ),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Center(
+                      child: Stack(
+                        children: [
+                          Container(
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              border: Border.all(color: const Color(0xFF102C57), width: 2),
+                            ),
+                            child: CircleAvatar(
+                              radius: 45,
+                              backgroundColor: const Color(0xFF102C57),
+                              backgroundImage: localFotoBytes != null
+                                  ? MemoryImage(localFotoBytes!)
+                                  : (_systemService.adminFoto.isNotEmpty && _systemService.adminFoto.startsWith('http')
+                                      ? NetworkImage(_systemService.adminFoto) as ImageProvider
+                                      : null),
+                              child: (localFotoBytes == null && (_systemService.adminFoto.isEmpty || !_systemService.adminFoto.startsWith('http')))
+                                  ? const Icon(Icons.person, color: Colors.white, size: 45)
+                                  : null,
+                            ),
+                          ),
+                          Positioned(
+                            bottom: 0,
+                            right: 0,
+                            child: InkWell(
+                              onTap: isSaving ? null : showPhotoOptions,
+                              child: Container(
+                                padding: const EdgeInsets.all(6),
+                                decoration: const BoxDecoration(
+                                  color: Color(0xFF1D4ED8),
+                                  shape: BoxShape.circle,
+                                ),
+                                child: const Icon(Icons.camera_alt, color: Colors.white, size: 16),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+                    TextField(
+                      controller: nameController,
+                      enabled: !isSaving,
+                      decoration: InputDecoration(
+                        labelText: "Nama Lengkap Admin",
+                        prefixIcon: const Icon(Icons.person_outline),
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: isSaving ? null : () => Navigator.pop(context),
+                  child: const Text("BATAL", style: TextStyle(color: Colors.grey, fontWeight: FontWeight.bold)),
+                ),
+                ElevatedButton(
+                  onPressed: isSaving
+                      ? null
+                      : () async {
+                          final name = nameController.text.trim();
+
+                          if (name.isEmpty) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text("Nama wajib diisi"),
+                                backgroundColor: Colors.red,
+                              ),
+                            );
+                            return;
+                          }
+
+                          setModalState(() {
+                            isSaving = true;
+                          });
+
+                          try {
+                            await _systemService.updateAdminProfile(
+                              name: name,
+                              role: _systemService.adminRole,
+                              username: _systemService.adminUsername,
+                              email: _systemService.adminEmail,
+                              foto: localBase64Foto ?? "",
+                              syncToBackend: true,
+                            );
+
+                            setState(() {});
+
+                            if (context.mounted) {
+                              Navigator.pop(context);
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text("Profil admin berhasil disimpan!"),
+                                  backgroundColor: Color(0xFF10B981),
+                                ),
+                              );
+                            }
+                          } catch (e) {
+                            if (context.mounted) {
+                              setModalState(() {
+                                isSaving = false;
+                              });
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text("Gagal memperbarui profil: $e"),
+                                  backgroundColor: Colors.red,
+                                ),
+                              );
+                            }
+                          }
+                        },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF102C57),
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  ),
+                  child: isSaving
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                        )
+                      : const Text("SIMPAN", style: TextStyle(fontWeight: FontWeight.bold)),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+}
+
+class PasswordLockScreen extends StatefulWidget {
+  final SystemService systemService;
+  final VoidCallback onUnlockSuccess;
+
+  const PasswordLockScreen({
+    super.key,
+    required this.systemService,
+    required this.onUnlockSuccess,
+  });
+
+  @override
+  State<PasswordLockScreen> createState() => _PasswordLockScreenState();
+}
+
+class _PasswordLockScreenState extends State<PasswordLockScreen> {
+  final TextEditingController _passwordController = TextEditingController();
+  bool _obscureText = true;
+  bool _isLoading = false;
+  String? _errorMessage;
+
+  @override
+  void dispose() {
+    _passwordController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _verifyAndUnlock() async {
+    final password = _passwordController.text.trim();
+    if (password.isEmpty) {
+      setState(() {
+        _errorMessage = "Kata sandi tidak boleh kosong";
+      });
+      return;
+    }
+
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
+
+    final success = await widget.systemService.verifyAdminPassword(password);
+
+    if (!mounted) return;
+
+    setState(() {
+      _isLoading = false;
+    });
+
+    if (success) {
+      widget.onUnlockSuccess();
+    } else {
+      setState(() {
+        _errorMessage = "Kata sandi administrator salah!";
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.all(24.0),
+        child: Container(
+          width: 380,
+          padding: const EdgeInsets.all(32),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(24),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.06),
+                blurRadius: 20,
+                spreadRadius: 2,
+              )
+            ],
+            border: Border.all(color: Colors.grey.withValues(alpha: 0.15)),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFEF4444).withValues(alpha: 0.1),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.lock_outline_rounded,
+                  color: Color(0xFFEF4444),
+                  size: 48,
+                ),
+              ),
+              const SizedBox(height: 24),
+              const Text(
+                "Absensi Guru Terkunci",
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 20,
+                  color: Color(0xFF102C57),
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                "Masukkan kata sandi Administrator untuk membuka halaman absensi pendidik & tenaga kependidikan.",
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: Colors.grey,
+                  fontSize: 12,
+                  height: 1.5,
+                ),
+              ),
+              const SizedBox(height: 28),
+              TextField(
+                controller: _passwordController,
+                obscureText: _obscureText,
+                enabled: !_isLoading,
+                onSubmitted: (_) => _verifyAndUnlock(),
+                decoration: InputDecoration(
+                  labelText: "Kata Sandi Admin",
+                  hintText: "Masukkan kata sandi...",
+                  prefixIcon: const Icon(Icons.vpn_key_outlined, color: Color(0xFF102C57)),
+                  suffixIcon: IconButton(
+                    icon: Icon(
+                      _obscureText ? Icons.visibility_off_outlined : Icons.visibility_outlined,
+                      color: Colors.grey,
+                    ),
+                    onPressed: () {
+                      setState(() {
+                        _obscureText = !_obscureText;
+                      });
+                    },
+                  ),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  errorText: _errorMessage,
+                ),
+              ),
+              const SizedBox(height: 24),
+              SizedBox(
+                width: double.infinity,
+                height: 50,
+                child: ElevatedButton(
+                  onPressed: _isLoading ? null : _verifyAndUnlock,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF102C57),
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    elevation: 0,
+                  ),
+                  child: _isLoading
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(
+                            color: Colors.white,
+                            strokeWidth: 2.5,
+                          ),
+                        )
+                      : const Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(Icons.lock_open_rounded, size: 18),
+                            SizedBox(width: 8),
+                            Text(
+                              "BUKA KUNCI",
+                              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, letterSpacing: 0.5),
+                            ),
+                          ],
+                        ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }

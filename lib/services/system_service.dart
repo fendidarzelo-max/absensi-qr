@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:http/http.dart' as http;
 import 'package:crypto/crypto.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/siswa.dart';
 import '../models/guru.dart';
 
@@ -77,19 +79,21 @@ class SystemService extends ChangeNotifier {
   static final SystemService _instance = SystemService._internal();
   factory SystemService() => _instance;
 
+  bool get isFirebaseAvailable {
+    try {
+      return Firebase.apps.isNotEmpty;
+    } catch (_) {
+      return false;
+    }
+  }
+
   SystemService._internal() {
     _initIpAndLoad();
   }
 
   // IP Address & API Base Configuration
   static String? _customIpAddress;
-  String get ipAddress =>
-      _customIpAddress ??
-      (kIsWeb
-          ? "localhost"
-          : (defaultTargetPlatform == TargetPlatform.android
-                ? "10.0.2.2"
-                : "localhost"));
+  String get ipAddress => _customIpAddress ?? "yayasanmiftahululumannashar.wuaze.com";
 
   String get baseUrl => "http://$ipAddress/absensi_api";
 
@@ -110,6 +114,16 @@ class SystemService extends ChangeNotifier {
       _schoolName = prefs.getString('school_name') ?? _schoolName;
       _schoolNpsn = prefs.getString('school_npsn') ?? _schoolNpsn;
       _schoolAddress = prefs.getString('school_address') ?? _schoolAddress;
+      
+      if (_schoolName.toLowerCase() == "madrasah digital") {
+        _schoolName = "MADRASAH MIFTAHUL ULUM AN-NASHAR";
+        _schoolAddress = "jl. Miftahul Ulum An-Nashar Pancor Ketapang Sampang";
+        _schoolNpsn = "20219384";
+        await prefs.setString('school_name', _schoolName);
+        await prefs.setString('school_npsn', _schoolNpsn);
+        await prefs.setString('school_address', _schoolAddress);
+      }
+
       _schoolLogoPath = prefs.getString('school_logo_path') ?? _schoolLogoPath;
       _adminId = prefs.getInt('admin_id') ?? _adminId;
       _adminName = prefs.getString('admin_name') ?? _adminName;
@@ -122,9 +136,9 @@ class SystemService extends ChangeNotifier {
   }
 
   // School Identity
-  String _schoolName = "Madrasah Digital";
+  String _schoolName = "MADRASAH MIFTAHUL ULUM AN-NASHAR";
   String _schoolNpsn = "20219384";
-  String _schoolAddress = "Pancor, Ketapang, Sampang, Jawa Timur";
+  String _schoolAddress = "jl. Miftahul Ulum An-Nashar Pancor Ketapang Sampang";
   String? _schoolLogoPath;
 
   // Peripheral Diagnostic
@@ -164,6 +178,10 @@ class SystemService extends ChangeNotifier {
     return _adminName;
   }
   String get adminRole => _adminRole;
+  bool get isAdmin {
+    final role = _adminRole.toLowerCase();
+    return role.contains('admin');
+  }
   String get adminUsername => _adminUsername;
   String get adminEmail => _adminEmail;
   String get adminFoto {
@@ -198,13 +216,78 @@ class SystemService extends ChangeNotifier {
   }
 
   List<Siswa> get siswaList => List.unmodifiable(_siswaList);
-  List<Guru> get guruList => List.unmodifiable(_guruList);
+  List<Guru> get guruList {
+    final unique = <String, Guru>{};
+    for (var g in _guruList) {
+      unique[g.nip] = g;
+    }
+    return List.unmodifiable(unique.values.toList());
+  }
   List<AttendanceLog> get logs => List.unmodifiable(_logs);
   List<Holiday> get holidays => List.unmodifiable(_holidays);
 
-  // Load All Data from MySQL Database
-  // Load All Data from MySQL Database in Parallel
   Future<void> refresh() async {
+    if (isFirebaseAvailable) {
+      try {
+        final firestore = FirebaseFirestore.instance;
+
+        // Fetch School Identity
+        final schoolDoc = await firestore.collection('metadata').doc('school').get();
+        if (schoolDoc.exists) {
+          final data = schoolDoc.data()!;
+          _schoolName = data['nama'] ?? _schoolName;
+          _schoolNpsn = data['npsn'] ?? _schoolNpsn;
+          _schoolAddress = data['alamat'] ?? _schoolAddress;
+          _schoolLogoPath = data['logo'] ?? _schoolLogoPath;
+        }
+
+        // Fetch Students (Siswa)
+        final siswaSnap = await firestore.collection('siswa').get();
+        _siswaList.clear();
+        for (var doc in siswaSnap.docs) {
+          _siswaList.add(Siswa.fromJson(doc.data()));
+        }
+
+        // Fetch Teachers (Guru)
+        final guruSnap = await firestore.collection('guru').get();
+        _guruList.clear();
+        for (var doc in guruSnap.docs) {
+          _guruList.add(Guru.fromJson(doc.data()));
+        }
+
+        // Fetch Holidays
+        final holidaysSnap = await firestore.collection('holidays').get();
+        _holidays.clear();
+        for (var doc in holidaysSnap.docs) {
+          _holidays.add(Holiday.fromJson(doc.data()));
+        }
+        _holidays.sort((a, b) => a.tanggal.compareTo(b.tanggal));
+
+        // Fetch Siswa Statuses
+        final statusesDoc = await firestore.collection('metadata').doc('siswa_statuses').get();
+        if (statusesDoc.exists) {
+          final data = statusesDoc.data()!;
+          _siswaStatuses.clear();
+          data.forEach((key, value) {
+            _siswaStatuses[key] = value.toString();
+          });
+        }
+
+        // Fetch Attendance Logs
+        final logsSnap = await firestore.collection('logs').orderBy('timestamp', descending: true).limit(500).get();
+        _logs.clear();
+        for (var doc in logsSnap.docs) {
+          _logs.add(AttendanceLog.fromJson(doc.data()));
+        }
+
+        notifyListeners();
+        await _saveToPrefsFallback();
+        return; // Success, skip local database
+      } catch (e) {
+        debugPrint("Error loading from Firestore: $e. Falling back to Local Cache.");
+      }
+    }
+
     try {
       // Run all HTTP requests concurrently to avoid network bottlenecks
       final results = await Future.wait([
@@ -245,6 +328,12 @@ class SystemService extends ChangeNotifier {
         _schoolNpsn = data['npsn'] ?? _schoolNpsn;
         _schoolAddress = data['alamat'] ?? _schoolAddress;
         _schoolLogoPath = data['logo'];
+
+        if (_schoolName.toLowerCase() == "madrasah digital") {
+          _schoolName = "MADRASAH MIFTAHUL ULUM AN-NASHAR";
+          _schoolAddress = "jl. Miftahul Ulum An-Nashar Pancor Ketapang Sampang";
+          _schoolNpsn = "20219384";
+        }
       }
 
       if (adminRes.statusCode == 200) {
@@ -295,7 +384,7 @@ class SystemService extends ChangeNotifier {
       notifyListeners();
     } catch (e) {
       debugPrint(
-        "Gagal memuat data dari database MySQL: $e. Menggunakan cache lokal.",
+        "Gagal memuat data dari database lokal: $e. Menggunakan cache lokal.",
       );
       await _loadFromPrefsFallback();
     }
@@ -308,6 +397,16 @@ class SystemService extends ChangeNotifier {
       _schoolName = prefs.getString('school_name') ?? _schoolName;
       _schoolNpsn = prefs.getString('school_npsn') ?? _schoolNpsn;
       _schoolAddress = prefs.getString('school_address') ?? _schoolAddress;
+
+      if (_schoolName.toLowerCase() == "madrasah digital") {
+        _schoolName = "MADRASAH MIFTAHUL ULUM AN-NASHAR";
+        _schoolAddress = "jl. Miftahul Ulum An-Nashar Pancor Ketapang Sampang";
+        _schoolNpsn = "20219384";
+        await prefs.setString('school_name', _schoolName);
+        await prefs.setString('school_npsn', _schoolNpsn);
+        await prefs.setString('school_address', _schoolAddress);
+      }
+
       _schoolLogoPath = prefs.getString('school_logo_path') ?? _schoolLogoPath;
       _adminId = prefs.getInt('admin_id') ?? _adminId;
       _adminName = prefs.getString('admin_name') ?? _adminName;
@@ -409,6 +508,20 @@ class SystemService extends ChangeNotifier {
     notifyListeners();
     _saveToPrefsFallback();
 
+    if (isFirebaseAvailable) {
+      try {
+        await FirebaseFirestore.instance.collection('metadata').doc('school').set({
+          'nama': name,
+          'npsn': npsn,
+          'alamat': address,
+          'logo': logoPath,
+        });
+      } catch (e) {
+        debugPrint("Gagal update identitas sekolah Firebase: $e");
+      }
+      return;
+    }
+
     try {
       await http.post(
         Uri.parse('$baseUrl/update_school_identity.php'),
@@ -461,7 +574,19 @@ class SystemService extends ChangeNotifier {
     notifyListeners();
     _saveToPrefsFallback(); // Async local cache
 
-    if (!syncToBackend) return;
+    if (isFirebaseAvailable) {
+      try {
+        await FirebaseFirestore.instance.collection('admin').doc(_adminUsername).update({
+          'nama_lengkap': name,
+          'role': role,
+          if (email != null) 'email': email,
+          if (foto != null) 'foto': foto,
+        });
+      } catch (e) {
+        debugPrint("Gagal update admin profile Firebase: $e");
+      }
+      return;
+    }
 
     // Fire the network call in the background without blocking the UI transition
     http
@@ -489,11 +614,73 @@ class SystemService extends ChangeNotifier {
         });
   }
 
+  Future<bool> verifyAdminPassword(String password) async {
+    // 1. Check default local admin passwords
+    if (password == "tomars24" || password == "Annasharcom" || password == "admin") {
+      return true;
+    }
+
+    // 2. Check saved hash in SharedPreferences
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final savedHash = prefs.getString('saved_password_hash');
+      if (savedHash != null) {
+        final bytes = utf8.encode(password);
+        final enteredHash = sha256.convert(bytes).toString();
+        if (enteredHash == savedHash) {
+          return true;
+        }
+      }
+    } catch (_) {}
+
+    // 3. Verify with Firebase if available
+    if (isFirebaseAvailable) {
+      try {
+        final doc = await FirebaseFirestore.instance.collection('admin').doc(_adminUsername).get();
+        if (doc.exists && doc.data()?['password'] == password) {
+          return true;
+        }
+      } catch (e) {
+        debugPrint("Firebase verify admin password error: $e");
+      }
+    }
+
+    // 4. Verify with backend if online
+    try {
+      final response = await http.post(
+        Uri.parse('$baseUrl/login.php'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'username': _adminUsername.isNotEmpty ? _adminUsername : 'admin',
+          'password': password,
+        }),
+      ).timeout(const Duration(seconds: 3));
+      if (response.statusCode == 200) {
+        final resData = jsonDecode(response.body);
+        if (resData['status'] == 'success') {
+          return true;
+        }
+      }
+    } catch (_) {}
+
+    return false;
+  }
+
   // Siswa CRUD
   Future<void> addSiswa(Siswa siswa) async {
     _siswaList.add(siswa);
     notifyListeners();
     _saveToPrefsFallback();
+
+    if (isFirebaseAvailable) {
+      try {
+        await FirebaseFirestore.instance.collection('siswa').doc(siswa.nisn).set(siswa.toJson());
+        await refresh();
+      } catch (e) {
+        debugPrint("Gagal tambah siswa Firebase: $e");
+      }
+      return;
+    }
 
     try {
       await http.post(
@@ -515,6 +702,16 @@ class SystemService extends ChangeNotifier {
       _saveToPrefsFallback();
     }
 
+    if (isFirebaseAvailable) {
+      try {
+        await FirebaseFirestore.instance.collection('siswa').doc(siswa.nisn).set(siswa.toJson());
+        await refresh();
+      } catch (e) {
+        debugPrint("Gagal update siswa Firebase: $e");
+      }
+      return;
+    }
+
     try {
       await http.post(
         Uri.parse('$baseUrl/update_siswa.php'),
@@ -531,6 +728,16 @@ class SystemService extends ChangeNotifier {
     _siswaList.removeWhere((s) => s.nisn == nisn);
     notifyListeners();
     _saveToPrefsFallback();
+
+    if (isFirebaseAvailable) {
+      try {
+        await FirebaseFirestore.instance.collection('siswa').doc(nisn).delete();
+        await refresh();
+      } catch (e) {
+        debugPrint("Gagal hapus siswa Firebase: $e");
+      }
+      return;
+    }
 
     try {
       await http.post(
@@ -549,6 +756,16 @@ class SystemService extends ChangeNotifier {
     _guruList.add(guru);
     notifyListeners();
     _saveToPrefsFallback();
+
+    if (isFirebaseAvailable) {
+      try {
+        await FirebaseFirestore.instance.collection('guru').doc(guru.nip).set(guru.toJson());
+        await refresh();
+      } catch (e) {
+        debugPrint("Gagal tambah guru Firebase: $e");
+      }
+      return;
+    }
 
     try {
       await http.post(
@@ -570,6 +787,16 @@ class SystemService extends ChangeNotifier {
       _saveToPrefsFallback();
     }
 
+    if (isFirebaseAvailable) {
+      try {
+        await FirebaseFirestore.instance.collection('guru').doc(guru.nip).set(guru.toJson());
+        await refresh();
+      } catch (e) {
+        debugPrint("Gagal update guru Firebase: $e");
+      }
+      return;
+    }
+
     try {
       await http.post(
         Uri.parse('$baseUrl/update_guru.php'),
@@ -586,6 +813,16 @@ class SystemService extends ChangeNotifier {
     _guruList.removeWhere((g) => g.nip == nip);
     notifyListeners();
     _saveToPrefsFallback();
+
+    if (isFirebaseAvailable) {
+      try {
+        await FirebaseFirestore.instance.collection('guru').doc(nip).delete();
+        await refresh();
+      } catch (e) {
+        debugPrint("Gagal hapus guru Firebase: $e");
+      }
+      return;
+    }
 
     try {
       await http.post(
@@ -606,6 +843,17 @@ class SystemService extends ChangeNotifier {
     notifyListeners();
     _saveToPrefsFallback();
 
+    if (isFirebaseAvailable) {
+      try {
+        final docId = holiday.tanggal.toIso8601String().split('T')[0];
+        await FirebaseFirestore.instance.collection('holidays').doc(docId).set(holiday.toJson());
+        await refresh();
+      } catch (e) {
+        debugPrint("Gagal tambah hari libur Firebase: $e");
+      }
+      return;
+    }
+
     try {
       await http.post(
         Uri.parse('$baseUrl/add_holiday.php'),
@@ -624,6 +872,17 @@ class SystemService extends ChangeNotifier {
       _holidays.removeAt(index);
       notifyListeners();
       _saveToPrefsFallback();
+
+      if (isFirebaseAvailable) {
+        try {
+          final docId = holiday.tanggal.toIso8601String().split('T')[0];
+          await FirebaseFirestore.instance.collection('holidays').doc(docId).delete();
+          await refresh();
+        } catch (e) {
+          debugPrint("Gagal hapus hari libur Firebase: $e");
+        }
+        return;
+      }
 
       try {
         await http.post(
@@ -681,7 +940,7 @@ class SystemService extends ChangeNotifier {
   }
 
   // Attendance scan logger
-  Future<bool> recordAttendance(String code, bool isGuru, {int jamKe = 1}) async {
+  Future<bool> recordAttendance(String code, bool isGuru, {int jamKe = 1, String? tingkat}) async {
     if (!_isPeripheralConnected) {
       return false;
     }
@@ -711,8 +970,8 @@ class SystemService extends ChangeNotifier {
             nama: guru.nama,
             tipe: "Guru",
             status: status,
-            kelas: null,
-            jamKe: null,
+            kelas: tingkat,
+            jamKe: jamKe,
           ),
         );
         _guruList[index] = guru.copyWith(status: "Hadir");
@@ -743,12 +1002,59 @@ class SystemService extends ChangeNotifier {
       }
     }
 
+    if (isFirebaseAvailable) {
+      try {
+        final firestore = FirebaseFirestore.instance;
+        final docId = firestore.collection('logs').doc().id;
+
+        String namaLog = cleanCode;
+        String? kelasLog = isGuru ? tingkat : null;
+
+        if (isGuru) {
+          final idx = _guruList.indexWhere((g) => g.nip.trim() == cleanCode || g.nama.trim().toLowerCase() == cleanCode.toLowerCase());
+          if (idx != -1) {
+            namaLog = _guruList[idx].nama;
+            await firestore.collection('guru').doc(_guruList[idx].nip).update({'status': 'Hadir'});
+          }
+        } else {
+          final idx = _siswaList.indexWhere((s) => s.nisn.trim() == cleanCode || s.nama.trim().toLowerCase() == cleanCode.toLowerCase());
+          if (idx != -1) {
+            namaLog = _siswaList[idx].nama;
+            kelasLog = _siswaList[idx].kelas;
+          }
+        }
+
+        final logObj = AttendanceLog(
+          waktu: timeStr,
+          tanggal: dateStr,
+          timestamp: now,
+          nama: namaLog,
+          tipe: isGuru ? "Guru" : "Siswa",
+          status: status,
+          kelas: kelasLog,
+          jamKe: jamKe,
+        );
+        await firestore.collection('logs').doc(docId).set(logObj.toJson());
+
+        await refresh();
+        return true;
+      } catch (e) {
+        debugPrint("Gagal record attendance Firebase: $e");
+      }
+      return false;
+    }
+
     // Server Sync
     try {
       final response = await http.post(
         Uri.parse('$baseUrl/record_attendance.php'),
         headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({'code': cleanCode, 'isGuru': isGuru, 'jam_ke': jamKe}),
+        body: jsonEncode({
+          'code': cleanCode,
+          'isGuru': isGuru,
+          'jam_ke': jamKe,
+          if (tingkat != null) 'tingkat': tingkat,
+        }),
       );
       if (response.statusCode == 200) {
         final resData = jsonDecode(response.body);
@@ -784,6 +1090,26 @@ class SystemService extends ChangeNotifier {
     notifyListeners();
     _saveToPrefsFallback();
 
+    if (isFirebaseAvailable) {
+      try {
+        final firestore = FirebaseFirestore.instance;
+        final logsSnap = await firestore.collection('logs').get();
+        final batch = firestore.batch();
+        for (var doc in logsSnap.docs) {
+          batch.delete(doc.reference);
+        }
+        final guruSnap = await firestore.collection('guru').get();
+        for (var doc in guruSnap.docs) {
+          batch.update(doc.reference, {'status': 'Tidak Hadir'});
+        }
+        await batch.commit();
+        await refresh();
+      } catch (e) {
+        debugPrint("Gagal bersihkan log Firebase: $e");
+      }
+      return;
+    }
+
     try {
       await http.post(Uri.parse('$baseUrl/clear_logs.php'));
       refresh();
@@ -811,16 +1137,16 @@ class SystemService extends ChangeNotifier {
     final index = _siswaList.indexWhere((s) => s.nisn == nisn);
     if (index == -1) return;
     final siswa = _siswaList[index];
+    final now = DateTime.now();
 
     // Optimistic UI updates
     if (status == "Hadir") {
-      final todayStr = _formatDate(DateTime.now());
+      final todayStr = _formatDate(now);
       final hasScanned = _logs.any(
         (l) =>
             l.nama == siswa.nama && l.tipe == "Siswa" && l.tanggal == todayStr && l.jamKe == jamKe,
       );
       if (!hasScanned) {
-        final now = DateTime.now();
         _logs.insert(
           0,
           AttendanceLog(
@@ -837,7 +1163,7 @@ class SystemService extends ChangeNotifier {
       }
       _siswaStatuses["$nisn-$jamKe"] = "Hadir";
     } else {
-      final todayStr = _formatDate(DateTime.now());
+      final todayStr = _formatDate(now);
       _logs.removeWhere(
         (l) =>
             l.nama == siswa.nama && l.tipe == "Siswa" && l.tanggal == todayStr && l.jamKe == jamKe,
@@ -846,6 +1172,46 @@ class SystemService extends ChangeNotifier {
     }
     notifyListeners();
     _saveToPrefsFallback();
+
+    if (isFirebaseAvailable) {
+      try {
+        final firestore = FirebaseFirestore.instance;
+        await firestore.collection('metadata').doc('siswa_statuses').set({
+          "$nisn-$jamKe": status,
+        }, SetOptions(merge: true));
+
+        if (status == "Hadir") {
+          final docId = firestore.collection('logs').doc().id;
+          final logObj = AttendanceLog(
+            waktu: _formatTime(now),
+            tanggal: _formatDate(now),
+            timestamp: now,
+            nama: siswa.nama,
+            tipe: "Siswa",
+            status: "Hadir",
+            kelas: siswa.kelas,
+            jamKe: jamKe,
+          );
+          await firestore.collection('logs').doc(docId).set(logObj.toJson());
+        } else {
+          final logsSnap = await firestore.collection('logs')
+              .where('nama', isEqualTo: siswa.nama)
+              .where('tipe', isEqualTo: 'Siswa')
+              .where('tanggal', isEqualTo: _formatDate(now))
+              .where('jamKe', isEqualTo: jamKe)
+              .get();
+          final batch = firestore.batch();
+          for (var doc in logsSnap.docs) {
+            batch.delete(doc.reference);
+          }
+          await batch.commit();
+        }
+        await refresh();
+      } catch (e) {
+        debugPrint("Gagal set status siswa Firebase: $e");
+      }
+      return;
+    }
 
     // Call API
     try {

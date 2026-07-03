@@ -5,6 +5,7 @@ import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 import '../services/system_service.dart';
 import '../utils/file_saver.dart';
+import '../models/siswa.dart';
 
 class EksporDataPage extends StatefulWidget {
   const EksporDataPage({super.key});
@@ -18,6 +19,7 @@ class _EksporDataPageState extends State<EksporDataPage> {
   String _selectedPeriod = "Hari Ini"; // Hari Ini, Bulan Ini, Kustom
   String _filterType = "Siswa"; // Semua, Siswa, Guru
   String _selectedKelas = "Semua Kelas";
+  String _searchQuery = "";
   
   late int _selectedYear;
   late String _selectedMonth;
@@ -137,6 +139,7 @@ class _EksporDataPageState extends State<EksporDataPage> {
   }
 
   Map<String, int> _getStudentStatusCounts(String name, List<AttendanceLog> logs) {
+    int hadir = 0;
     int sakit = 0;
     int izin = 0;
     int alfa = 0;
@@ -146,16 +149,20 @@ class _EksporDataPageState extends State<EksporDataPage> {
 
     for (var log in studentLogs) {
       final current = dayStatuses[log.tanggal];
-      if (current == null || log.status == "Hadir" || log.status == "Sakit" || log.status == "Izin") {
+      if (current == null || log.status == "Hadir" || log.status == "Sakit" || log.status == "Izin" || log.status == "Alfa") {
         dayStatuses[log.tanggal] = log.status;
       }
     }
 
     for (var status in dayStatuses.values) {
-      if (status == "Sakit") {
+      if (status == "Hadir") {
+        hadir++;
+      } else if (status == "Sakit") {
         sakit++;
       } else if (status == "Izin") {
         izin++;
+      } else if (status == "Alfa") {
+        alfa++;
       }
     }
 
@@ -166,7 +173,7 @@ class _EksporDataPageState extends State<EksporDataPage> {
       }
     }
 
-    return {"Sakit": sakit, "Izin": izin, "Alfa": alfa};
+    return {"Hadir": hadir, "Sakit": sakit, "Izin": izin, "Alfa": alfa};
   }
 
   void _exportCSV(BuildContext context, String title, List<AttendanceLog> logsToExport) {
@@ -176,7 +183,7 @@ class _EksporDataPageState extends State<EksporDataPage> {
     if (_filterType == "Siswa") {
       final students = _systemService.siswaList.where((s) {
         if (_selectedKelas != "Semua Kelas") {
-          return s.kelas == _selectedKelas;
+          return s.kelasDisplay == _selectedKelas;
         }
         return true;
       }).toList();
@@ -460,7 +467,7 @@ class _EksporDataPageState extends State<EksporDataPage> {
 
     final students = _systemService.siswaList.where((s) {
       if (_selectedKelas != "Semua Kelas") {
-        return s.kelas == _selectedKelas;
+        return s.kelasDisplay == _selectedKelas;
       }
       return true;
     }).toList();
@@ -478,6 +485,7 @@ class _EksporDataPageState extends State<EksporDataPage> {
       "Juli", "Agustus", "September", "Oktober", "November", "Desember"
     ];
     final tanggalCetak = "${now.day} ${months[now.month]} ${now.year}";
+    final String kepalaMadrasah = _getKepalaMadrasah(_selectedKelas);
 
     pw.MemoryImage? logoImage;
     try {
@@ -531,7 +539,7 @@ class _EksporDataPageState extends State<EksporDataPage> {
                       ),
                       pw.SizedBox(height: 4),
                       pw.Text(
-                        "NPSN: ${_systemService.schoolNpsn} | ${_systemService.schoolAddress}",
+                        _systemService.schoolAddress,
                         style: const pw.TextStyle(
                           fontSize: 8,
                         ),
@@ -769,6 +777,27 @@ class _EksporDataPageState extends State<EksporDataPage> {
                     headerStyle: pw.TextStyle(fontWeight: pw.FontWeight.bold),
                     cellHeight: 25,
                   ),
+            
+            pw.SizedBox(height: 30),
+            pw.Row(
+              mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+              children: [
+                pw.SizedBox(width: 150),
+                pw.Column(
+                  crossAxisAlignment: pw.CrossAxisAlignment.center,
+                  children: [
+                    pw.Text("Sampang, $tanggalCetak", style: const pw.TextStyle(fontSize: 10)),
+                    pw.SizedBox(height: 4),
+                    pw.Text("Kepala Madrasah,", style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 10)),
+                    pw.SizedBox(height: 50),
+                    pw.Text(
+                      kepalaMadrasah,
+                      style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 10, decoration: pw.TextDecoration.underline),
+                    ),
+                  ],
+                ),
+              ],
+            ),
           ];
         },
       ),
@@ -1052,28 +1081,92 @@ class _EksporDataPageState extends State<EksporDataPage> {
                   ),
             if (_filterType == "Siswa") ...[
               const SizedBox(height: 12),
-              Row(
-                children: [
-                  const Text("Filter Kelas:", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Color(0xFF102C57))),
-                  const SizedBox(width: 12),
-                  DropdownButton<String>(
-                    value: _selectedKelas,
-                    items: ["Semua Kelas", ..._systemService.siswaList.map((s) => s.kelas).toSet()].map((kelas) {
-                      return DropdownMenuItem<String>(
-                        value: kelas,
-                        child: Text(kelas),
-                      );
-                    }).toList(),
-                    onChanged: (val) {
-                      if (val != null) {
-                        setState(() {
-                          _selectedKelas = val;
-                        });
-                      }
-                    },
-                  ),
-                ],
-              ),
+              isMobile
+                  ? Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            const Text("Filter Kelas:", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Color(0xFF102C57))),
+                            const SizedBox(width: 12),
+                            DropdownButton<String>(
+                              value: _selectedKelas,
+                              items: ["Semua Kelas", ..._systemService.siswaList.map((s) => s.kelasDisplay).toSet()].map((kelas) {
+                                return DropdownMenuItem<String>(
+                                  value: kelas,
+                                  child: Text(kelas),
+                                );
+                              }).toList(),
+                              onChanged: (val) {
+                                if (val != null) {
+                                  setState(() {
+                                    _selectedKelas = val;
+                                  });
+                                }
+                              },
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        SizedBox(
+                          width: double.infinity,
+                          child: TextField(
+                            decoration: InputDecoration(
+                              hintText: "Cari nama siswa...",
+                              prefixIcon: const Icon(Icons.search, size: 18),
+                              isDense: true,
+                              contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                            ),
+                            onChanged: (val) {
+                              setState(() {
+                                _searchQuery = val;
+                              });
+                            },
+                          ),
+                        ),
+                      ],
+                    )
+                  : Row(
+                      children: [
+                        const Text("Filter Kelas:", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Color(0xFF102C57))),
+                        const SizedBox(width: 12),
+                        DropdownButton<String>(
+                          value: _selectedKelas,
+                          items: ["Semua Kelas", ..._systemService.siswaList.map((s) => s.kelasDisplay).toSet()].map((kelas) {
+                            return DropdownMenuItem<String>(
+                              value: kelas,
+                              child: Text(kelas),
+                            );
+                          }).toList(),
+                          onChanged: (val) {
+                            if (val != null) {
+                              setState(() {
+                                _selectedKelas = val;
+                              });
+                            }
+                          },
+                        ),
+                        const Spacer(),
+                        SizedBox(
+                          width: 220,
+                          child: TextField(
+                            decoration: InputDecoration(
+                              hintText: "Cari nama siswa...",
+                              prefixIcon: const Icon(Icons.search, size: 18),
+                              isDense: true,
+                              contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                            ),
+                            onChanged: (val) {
+                              setState(() {
+                                _searchQuery = val;
+                              });
+                            },
+                          ),
+                        ),
+                      ],
+                    ),
             ],
             const SizedBox(height: 16),
 
@@ -1097,46 +1190,105 @@ class _EksporDataPageState extends State<EksporDataPage> {
                       ),
                     ),
                   )
-                : (_selectedPeriod == "Hari Ini" && _filterType == "Siswa")
+                : (_filterType == "Siswa" && _selectedPeriod != "Hari Ini")
                     ? SingleChildScrollView(
                         scrollDirection: Axis.horizontal,
-                          child: DataTable(
-                            headingRowColor: WidgetStateProperty.all(const Color(0xFF102C57).withValues(alpha: 0.05)),
-                            columns: const [
-                              DataColumn(label: Text("Nama Lengkap", style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF102C57)))),
-                              DataColumn(label: Text("Kelas", style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF102C57)))),
-                              DataColumn(label: Center(child: Text("1", style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF102C57))))),
-                              DataColumn(label: Center(child: Text("2", style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF102C57))))),
-                              DataColumn(label: Center(child: Text("3", style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF102C57))))),
-                            ],
-                            rows: (() {
-                              final students = _systemService.siswaList.where((s) {
-                                if (_selectedKelas != "Semua Kelas") {
-                                  return s.kelas == _selectedKelas;
-                                }
-                                return true;
-                              }).toList();
-                              
-                              return students.map((s) {
-                                final status1 = _systemService.getSiswaStatus(s.nisn, jamKe: 1);
-                                final maxHours = _systemService.getMaxHoursForKelas(s.kelas);
-                                final status2 = maxHours >= 2 ? _systemService.getSiswaStatus(s.nisn, jamKe: 2) : "-";
-                                final status3 = maxHours >= 3 ? _systemService.getSiswaStatus(s.nisn, jamKe: 3) : "-";
-                                
-                                return DataRow(
-                                  cells: [
-                                    DataCell(Text(s.nama, style: const TextStyle(fontWeight: FontWeight.w600))),
-                                    DataCell(Text(s.kelas)),
-                                    DataCell(Center(child: _buildOnScreenStatusIcon(status1))),
-                                    DataCell(Center(child: _buildOnScreenStatusIcon(status2))),
-                                    DataCell(Center(child: _buildOnScreenStatusIcon(status3))),
-                                  ],
-                                );
-                              }).toList();
-                            })(),
-                          ),
+                        child: DataTable(
+                          headingRowColor: WidgetStateProperty.all(const Color(0xFF102C57).withValues(alpha: 0.05)),
+                          columns: const [
+                            DataColumn(label: Text("No", style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF102C57)))),
+                            DataColumn(label: Text("NISN", style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF102C57)))),
+                            DataColumn(label: Text("Nama Siswa", style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF102C57)))),
+                            DataColumn(label: Text("Kelas", style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF102C57)))),
+                            DataColumn(label: Center(child: Text("H", style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF102C57))))),
+                            DataColumn(label: Center(child: Text("S", style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF102C57))))),
+                            DataColumn(label: Center(child: Text("I", style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF102C57))))),
+                            DataColumn(label: Center(child: Text("A", style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF102C57))))),
+                            DataColumn(label: Center(child: Text("Aksi", style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF102C57))))),
+                          ],
+                          rows: (() {
+                            final students = _systemService.siswaList.where((s) {
+                              if (_selectedKelas != "Semua Kelas" && s.kelasDisplay != _selectedKelas) {
+                                return false;
+                              }
+                              if (_searchQuery.isNotEmpty && !s.nama.toLowerCase().contains(_searchQuery.toLowerCase())) {
+                                return false;
+                              }
+                              return true;
+                            }).toList();
+
+                            int idx = 1;
+                            return students.map((s) {
+                              final counts = _getStudentStatusCounts(s.nama, filteredLogs);
+                              final rowIdx = idx++;
+
+                              return DataRow(
+                                cells: [
+                                  DataCell(Text(rowIdx.toString())),
+                                  DataCell(Text(s.nisn)),
+                                  DataCell(Text(s.nama, style: const TextStyle(fontWeight: FontWeight.w600))),
+                                  DataCell(Text(s.kelasDisplay)),
+                                  DataCell(Center(child: _buildStatusTag(counts["Hadir"]!.toString(), Colors.blue))),
+                                  DataCell(Center(child: _buildStatusTag(counts["Sakit"]!.toString(), Colors.amber.shade800))),
+                                  DataCell(Center(child: _buildStatusTag(counts["Izin"]!.toString(), Colors.teal))),
+                                  DataCell(Center(child: _buildStatusTag(counts["Alfa"]!.toString(), Colors.redAccent))),
+                                  DataCell(
+                                    Center(
+                                      child: IconButton(
+                                        icon: const Icon(Icons.print, color: Color(0xFF102C57)),
+                                        onPressed: () => _showIndividualStudentReport(context, s, filteredLogs),
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              );
+                            }).toList();
+                          })(),
+                        ),
                       )
-                    : ListView.separated(
+                    : (_selectedPeriod == "Hari Ini" && _filterType == "Siswa")
+                        ? SingleChildScrollView(
+                            scrollDirection: Axis.horizontal,
+                            child: DataTable(
+                              headingRowColor: WidgetStateProperty.all(const Color(0xFF102C57).withValues(alpha: 0.05)),
+                              columns: const [
+                                DataColumn(label: Text("Nama Lengkap", style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF102C57)))),
+                                DataColumn(label: Text("Kelas", style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF102C57)))),
+                                DataColumn(label: Center(child: Text("1", style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF102C57))))),
+                                DataColumn(label: Center(child: Text("2", style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF102C57))))),
+                                DataColumn(label: Center(child: Text("3", style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF102C57))))),
+                              ],
+                              rows: (() {
+                                final students = _systemService.siswaList.where((s) {
+                                  if (_selectedKelas != "Semua Kelas" && s.kelasDisplay != _selectedKelas) {
+                                    return false;
+                                  }
+                                  if (_searchQuery.isNotEmpty && !s.nama.toLowerCase().contains(_searchQuery.toLowerCase())) {
+                                    return false;
+                                  }
+                                  return true;
+                                }).toList();
+                                
+                                return students.map((s) {
+                                  final status1 = _systemService.getSiswaStatus(s.nisn, jamKe: 1);
+                                  final maxHours = _systemService.getMaxHoursForKelas(s.kelas);
+                                  final status2 = maxHours >= 2 ? _systemService.getSiswaStatus(s.nisn, jamKe: 2) : "-";
+                                  final status3 = maxHours >= 3 ? _systemService.getSiswaStatus(s.nisn, jamKe: 3) : "-";
+                                  
+                                  return DataRow(
+                                    cells: [
+                                      DataCell(Text(s.nama, style: const TextStyle(fontWeight: FontWeight.w600))),
+                                      DataCell(Text(s.kelasDisplay)),
+                                      DataCell(Center(child: _buildOnScreenStatusIcon(status1))),
+                                      DataCell(Center(child: _buildOnScreenStatusIcon(status2))),
+                                      DataCell(Center(child: _buildOnScreenStatusIcon(status3))),
+                                    ],
+                                  );
+                                }).toList();
+                              })(),
+                            ),
+                          )
+                        : ListView.separated(
                         shrinkWrap: true,
                         physics: const NeverScrollableScrollPhysics(),
                         itemCount: filteredLogs.length,
@@ -1185,6 +1337,403 @@ class _EksporDataPageState extends State<EksporDataPage> {
           Text(title, style: TextStyle(color: Colors.grey[600], fontSize: 12)),
           const SizedBox(height: 4),
           Text(value, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Color(0xFF102C57))),
+        ],
+      ),
+    );
+  }
+
+  String _getKepalaMadrasah(String kelas) {
+    final k = kelas.toUpperCase();
+    if (k.contains('MI')) {
+      return "AMIRUUDIN, S.Pd.I";
+    } else if (k.contains('MTS')) {
+      return "MAHRUS, S.Pd.";
+    } else if (k.contains('MA')) {
+      return "ISMAIL, S.Pd.";
+    }
+    return "AMIRUUDIN, S.Pd.I";
+  }
+
+  Widget _buildStatusTag(String value, Color color) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Text(
+        value,
+        style: TextStyle(color: color, fontWeight: FontWeight.bold, fontSize: 13),
+      ),
+    );
+  }
+
+  void _showIndividualStudentReport(BuildContext context, Siswa student, List<AttendanceLog> logs) {
+    final counts = _getStudentStatusCounts(student.nama, logs);
+    
+    final studentLogs = logs.where((l) => l.nama == student.nama && l.tipe == "Siswa").toList();
+    studentLogs.sort((a, b) => b.timestamp.compareTo(a.timestamp));
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          children: [
+            const Icon(Icons.person, color: Color(0xFF102C57), size: 28),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(student.nama, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: Color(0xFF102C57))),
+                  Text("NISN: ${student.nisn} | Kelas: ${student.kelasDisplay}", style: const TextStyle(fontSize: 12, color: Colors.grey)),
+                ],
+              ),
+            ),
+          ],
+        ),
+        content: SizedBox(
+          width: 500,
+          height: 400,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  _buildMiniMetric("Hadir", counts["Hadir"]!.toString(), Colors.blue),
+                  _buildMiniMetric("Sakit", counts["Sakit"]!.toString(), Colors.amber.shade800),
+                  _buildMiniMetric("Izin", counts["Izin"]!.toString(), Colors.teal),
+                  _buildMiniMetric("Alfa", counts["Alfa"]!.toString(), Colors.redAccent),
+                ],
+              ),
+              const SizedBox(height: 16),
+              const Align(
+                alignment: Alignment.centerLeft,
+                child: Text("Riwayat Kehadiran Harian", style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF102C57))),
+              ),
+              const SizedBox(height: 8),
+              Expanded(
+                child: studentLogs.isEmpty
+                    ? const Center(child: Text("Belum ada riwayat absensi", style: TextStyle(color: Colors.grey)))
+                    : ListView.separated(
+                        itemCount: studentLogs.length,
+                        separatorBuilder: (_, __) => const Divider(height: 1),
+                        itemBuilder: (context, idx) {
+                          final log = studentLogs[idx];
+                          Color statusColor = Colors.blue;
+                          if (log.status == "Sakit") statusColor = Colors.amber.shade800;
+                          if (log.status == "Izin") statusColor = Colors.teal;
+                          if (log.status == "Alfa") statusColor = Colors.redAccent;
+                          
+                          return ListTile(
+                            contentPadding: EdgeInsets.zero,
+                            title: Text(log.tanggal, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
+                            subtitle: Text("Waktu: ${log.waktu} | Jam Ke: ${log.jamKe ?? '-'}", style: const TextStyle(fontSize: 12)),
+                            trailing: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                              decoration: BoxDecoration(
+                                color: statusColor.withValues(alpha: 0.1),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Text(
+                                log.status,
+                                style: TextStyle(color: statusColor, fontWeight: FontWeight.bold, fontSize: 12),
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text("TUTUP"),
+          ),
+          ElevatedButton.icon(
+            icon: const Icon(Icons.picture_as_pdf),
+            label: const Text("CETAK PDF"),
+            onPressed: () {
+              Navigator.pop(context);
+              _exportIndividualPDF(context, student, logs);
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF102C57),
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMiniMetric(String label, String value, Color color) {
+    return Container(
+      width: 100,
+      padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.05),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: color.withValues(alpha: 0.15)),
+      ),
+      child: Column(
+        children: [
+          Text(value, style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: color)),
+          const SizedBox(height: 2),
+          Text(label, style: TextStyle(fontSize: 11, color: Colors.grey.shade700, fontWeight: FontWeight.w500)),
+        ],
+      ),
+    );
+  }
+
+  void _exportIndividualPDF(BuildContext context, Siswa student, List<AttendanceLog> logsToExport) async {
+    final counts = _getStudentStatusCounts(student.nama, logsToExport);
+    final studentLogs = logsToExport.where((l) => l.nama == student.nama && l.tipe == "Siswa").toList();
+    studentLogs.sort((a, b) => a.timestamp.compareTo(b.timestamp));
+
+    final now = DateTime.now();
+    final months = [
+      "", "Januari", "Februari", "Maret", "April", "Mei", "Juni",
+      "Juli", "Agustus", "September", "Oktober", "November", "Desember"
+    ];
+    final tanggalCetak = "${now.day} ${months[now.month]} ${now.year}";
+    final String kepalaMadrasah = _getKepalaMadrasah(student.kelasDisplay);
+
+    pw.MemoryImage? logoImage;
+    try {
+      final logoBytes = await rootBundle.load('assets/logo_login.png');
+      logoImage = pw.MemoryImage(logoBytes.buffer.asUint8List());
+    } catch (e) {
+      // Gracefully continue
+    }
+
+    final pdf = pw.Document();
+    
+    pdf.addPage(
+      pw.MultiPage(
+        pageFormat: PdfPageFormat.a4,
+        margin: const pw.EdgeInsets.all(32),
+        footer: (pw.Context context) {
+          return pw.Container(
+            alignment: pw.Alignment.centerRight,
+            margin: const pw.EdgeInsets.only(top: 8),
+            child: pw.Text(
+              "Halaman ${context.pageNumber} dari ${context.pagesCount}",
+              style: const pw.TextStyle(fontSize: 8, color: PdfColors.grey),
+            ),
+          );
+        },
+        build: (pw.Context context) {
+          return [
+            pw.Row(
+              crossAxisAlignment: pw.CrossAxisAlignment.center,
+              children: [
+                if (logoImage != null)
+                  pw.Container(
+                    width: 55,
+                    height: 55,
+                    margin: const pw.EdgeInsets.only(right: 16),
+                    child: pw.Image(logoImage),
+                  ),
+                pw.Expanded(
+                  child: pw.Column(
+                    crossAxisAlignment: pw.CrossAxisAlignment.center,
+                    children: [
+                      pw.Text(
+                        _systemService.schoolName.toUpperCase(),
+                        style: pw.TextStyle(
+                          fontWeight: pw.FontWeight.bold,
+                          fontSize: 14,
+                        ),
+                        textAlign: pw.TextAlign.center,
+                      ),
+                      pw.SizedBox(height: 4),
+                      pw.Text(
+                        _systemService.schoolAddress,
+                        style: const pw.TextStyle(
+                          fontSize: 9,
+                        ),
+                        textAlign: pw.TextAlign.center,
+                      ),
+                    ],
+                  ),
+                ),
+                if (logoImage != null)
+                  pw.SizedBox(width: 55),
+              ],
+            ),
+            pw.SizedBox(height: 8),
+            pw.Container(height: 2, color: PdfColors.black),
+            pw.SizedBox(height: 1),
+            pw.Container(height: 0.5, color: PdfColors.black),
+            pw.SizedBox(height: 16),
+
+            pw.Center(
+              child: pw.Text(
+                "LAPORAN REKAPITULASI KEHADIRAN SISWA",
+                style: pw.TextStyle(
+                  fontWeight: pw.FontWeight.bold,
+                  fontSize: 14,
+                ),
+              ),
+            ),
+            pw.SizedBox(height: 16),
+
+            pw.Row(
+              mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+              children: [
+                pw.Column(
+                  crossAxisAlignment: pw.CrossAxisAlignment.start,
+                  children: [
+                    pw.Text("Nama Siswa : ${student.nama}", style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 10)),
+                    pw.SizedBox(height: 4),
+                    pw.Text("NISN           : ${student.nisn}", style: const pw.TextStyle(fontSize: 10)),
+                  ],
+                ),
+                pw.Column(
+                  crossAxisAlignment: pw.CrossAxisAlignment.end,
+                  children: [
+                    pw.Text("Kelas   : ${student.kelasDisplay}", style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 10)),
+                    pw.SizedBox(height: 4),
+                    pw.Text("Periode : ${_selectedPeriod == 'Kustom' ? '$_selectedMonth $_selectedYear' : _selectedPeriod}", style: const pw.TextStyle(fontSize: 10)),
+                  ],
+                ),
+              ],
+            ),
+            pw.SizedBox(height: 16),
+
+            pw.Row(
+              mainAxisAlignment: pw.MainAxisAlignment.spaceAround,
+              children: [
+                _buildPdfMiniMetric("Hadir", counts["Hadir"]!.toString(), PdfColors.blue800, PdfColors.blue100),
+                _buildPdfMiniMetric("Sakit", counts["Sakit"]!.toString(), PdfColors.amber800, PdfColors.amber100),
+                _buildPdfMiniMetric("Izin", counts["Izin"]!.toString(), PdfColors.teal800, PdfColors.teal100),
+                _buildPdfMiniMetric("Alfa", counts["Alfa"]!.toString(), PdfColors.red800, PdfColors.red100),
+              ],
+            ),
+            pw.SizedBox(height: 20),
+
+            pw.Text(
+              "Riwayat Kehadiran Harian:",
+              style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 11),
+            ),
+            pw.SizedBox(height: 8),
+
+            pw.Table(
+              border: pw.TableBorder.all(width: 0.5, color: PdfColors.grey),
+              columnWidths: const {
+                0: pw.FixedColumnWidth(40),
+                1: pw.FixedColumnWidth(120),
+                2: pw.FixedColumnWidth(100),
+                3: pw.FixedColumnWidth(80),
+                4: pw.FixedColumnWidth(100),
+              },
+              children: [
+                pw.TableRow(
+                  decoration: const pw.BoxDecoration(color: PdfColors.grey100),
+                  children: [
+                    _buildPdfTableHeaderCell("No", fontSize: 9),
+                    _buildPdfTableHeaderCell("Tanggal", fontSize: 9),
+                    _buildPdfTableHeaderCell("Waktu Scan", fontSize: 9),
+                    _buildPdfTableHeaderCell("Jam Ke", fontSize: 9),
+                    _buildPdfTableHeaderCell("Status Kehadiran", fontSize: 9),
+                  ],
+                ),
+                ...() {
+                  int idx = 1;
+                  return studentLogs.map((log) {
+                    final rowIdx = idx++;
+                    return pw.TableRow(
+                      children: [
+                        _buildPdfTableCellText(rowIdx.toString(), fontSize: 9),
+                        _buildPdfTableCellText(log.tanggal, fontSize: 9),
+                        _buildPdfTableCellText(log.waktu, fontSize: 9),
+                        _buildPdfTableCellText(log.jamKe?.toString() ?? "-", fontSize: 9),
+                        pw.Container(
+                          alignment: pw.Alignment.center,
+                          padding: const pw.EdgeInsets.symmetric(vertical: 4),
+                          child: pw.Text(
+                            log.status,
+                            style: pw.TextStyle(
+                              fontWeight: pw.FontWeight.bold,
+                              fontSize: 9,
+                              color: log.status == "Hadir"
+                                  ? PdfColors.blue800
+                                  : log.status == "Sakit"
+                                      ? PdfColors.amber800
+                                      : log.status == "Izin"
+                                          ? PdfColors.teal800
+                                          : PdfColors.red800,
+                            ),
+                          ),
+                        ),
+                      ],
+                    );
+                  }).toList();
+                }(),
+              ],
+            ),
+            pw.SizedBox(height: 30),
+
+            pw.Row(
+              mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+              children: [
+                pw.SizedBox(width: 150),
+                pw.Column(
+                  crossAxisAlignment: pw.CrossAxisAlignment.center,
+                  children: [
+                    pw.Text("Sampang, $tanggalCetak", style: const pw.TextStyle(fontSize: 10)),
+                    pw.SizedBox(height: 4),
+                    pw.Text("Kepala Madrasah,", style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 10)),
+                    pw.SizedBox(height: 50),
+                    pw.Text(kepalaMadrasah, style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 10, decoration: pw.TextDecoration.underline)),
+                  ],
+                ),
+              ],
+            ),
+          ];
+        },
+      ),
+    );
+
+    await Printing.layoutPdf(
+      onLayout: (PdfPageFormat format) async => pdf.save(),
+      name: "Rekap_Kehadiran_${student.nama.replaceAll(' ', '_')}",
+    );
+  }
+
+  pw.Widget _buildPdfMiniMetric(String label, String value, PdfColor textColor, PdfColor bgColor) {
+    return pw.Container(
+      width: 80,
+      padding: const pw.EdgeInsets.symmetric(vertical: 8, horizontal: 6),
+      decoration: pw.BoxDecoration(
+        color: bgColor,
+        borderRadius: const pw.BorderRadius.all(pw.Radius.circular(6)),
+      ),
+      child: pw.Column(
+        children: [
+          pw.Text(
+            value,
+            style: pw.TextStyle(
+              fontSize: 16,
+              fontWeight: pw.FontWeight.bold,
+              color: textColor,
+            ),
+          ),
+          pw.SizedBox(height: 2),
+          pw.Text(
+            label,
+            style: pw.TextStyle(
+              fontSize: 9,
+              color: textColor,
+              fontWeight: pw.FontWeight.bold,
+            ),
+          ),
         ],
       ),
     );

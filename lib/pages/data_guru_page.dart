@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import '../models/guru.dart';
 import '../services/system_service.dart';
@@ -37,6 +38,24 @@ class _DataGuruPageState extends State<DataGuruPage> {
     String selectedAgama = (guru?.agama != null && ['Islam', 'Kristen', 'Katolik', 'Hindu', 'Buddha', 'Khonghucu', 'Lainnya'].contains(guru!.agama)) ? guru.agama : "Islam";
 
     final formKey = GlobalKey<FormState>();
+
+    final Map<String, List<String>> scheduleMap = {};
+    const List<String> daysOfWeek = ["Senin", "Selasa", "Rabu", "Kamis", "Sabtu", "Ahad"];
+    for (var d in daysOfWeek) {
+      scheduleMap[d] = [];
+    }
+    if (guru?.jadwalMengajar != null && guru!.jadwalMengajar!.isNotEmpty) {
+      try {
+        final decoded = jsonDecode(guru.jadwalMengajar!) as Map<String, dynamic>;
+        decoded.forEach((key, val) {
+          if (val is List) {
+            scheduleMap[key] = val.map((e) => e.toString()).toList();
+          }
+        });
+      } catch (e) {
+        debugPrint("Error parsing jadwal: $e");
+      }
+    }
 
     showModalBottomSheet(
       context: context,
@@ -202,9 +221,50 @@ class _DataGuruPageState extends State<DataGuruPage> {
                       border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                     ),
                   ),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 20),
 
-                  const SizedBox(height: 32),
+                  const Text(
+                    "Jadwal Mengajar Harian (Tingkat)",
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Color(0xFF102C57)),
+                  ),
+                  const SizedBox(height: 10),
+                  ...daysOfWeek.map((day) {
+                    final selectedLevels = scheduleMap[day] ?? [];
+                    return Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 4.0),
+                      child: Row(
+                        children: [
+                          SizedBox(
+                            width: 70,
+                            child: Text(day, style: const TextStyle(fontWeight: FontWeight.w600)),
+                          ),
+                          ...["MI", "MTS", "MA"].map((lvl) {
+                            final isChecked = selectedLevels.contains(lvl);
+                            return Padding(
+                              padding: const EdgeInsets.only(right: 8.0),
+                              child: FilterChip(
+                                label: Text(lvl, style: TextStyle(fontSize: 11, color: isChecked ? Colors.white : Colors.black87)),
+                                selected: isChecked,
+                                selectedColor: const Color(0xFF102C57),
+                                checkmarkColor: Colors.white,
+                                onSelected: (selected) {
+                                  setModalState(() {
+                                    if (selected) {
+                                      selectedLevels.add(lvl);
+                                    } else {
+                                      selectedLevels.remove(lvl);
+                                    }
+                                    scheduleMap[day] = selectedLevels;
+                                  });
+                                },
+                              ),
+                            );
+                          }),
+                        ],
+                      ),
+                    );
+                  }),
+                  const SizedBox(height: 24),
 
                   SizedBox(
                     width: double.infinity,
@@ -224,6 +284,7 @@ class _DataGuruPageState extends State<DataGuruPage> {
                             jenisKelamin: selectedGender,
                             tanggalLahir: tanggalLahirController.text,
                             pendidikanTerakhir: pendidikanController.text,
+                            jadwalMengajar: jsonEncode(scheduleMap),
                           );
 
                           setState(() {

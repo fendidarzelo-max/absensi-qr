@@ -307,13 +307,13 @@ class _KartuPelajarPageState extends State<KartuPelajarPage> {
     }
     final k = kelas.toUpperCase();
     if (k.contains('MI')) {
-      return 'assets/card_front.jpg';
+      return 'assets/card_front_mi_v2.png';
     } else if (k.contains('MTS')) {
-      return 'assets/card_front_mts.jpg';
+      return 'assets/card_front_mts_v2.png';
     } else if (k.contains('MA')) {
-      return 'assets/card_front_ma.jpg';
+      return 'assets/card_front_ma_v2.png';
     }
-    return 'assets/card_front.jpg';
+    return 'assets/card_front_mi_v2.png';
   }
 
   String _getCardBackAsset(String kelas) {
@@ -322,13 +322,13 @@ class _KartuPelajarPageState extends State<KartuPelajarPage> {
     }
     final k = kelas.toUpperCase();
     if (k.contains('MI')) {
-      return 'assets/card_back.jpg';
+      return 'assets/card_back_mi_v2.png';
     } else if (k.contains('MTS')) {
-      return 'assets/card_back_mts.jpg';
+      return 'assets/card_back_mts_v2.png';
     } else if (k.contains('MA')) {
-      return 'assets/card_back_ma.jpg';
+      return 'assets/card_back_ma_v2.png';
     }
-    return 'assets/card_back.jpg';
+    return 'assets/card_back_mi_v2.png';
   }
 
   Widget _buildKartuBelajarFront() {
@@ -1137,12 +1137,13 @@ class _KartuPelajarPageState extends State<KartuPelajarPage> {
                       DropdownButtonFormField<String>(
                         key: ValueKey("kelas_${_selectedKelas}_${_nisnController.text}"),
                         initialValue: _selectedKelas,
+                        isExpanded: true,
                         decoration: InputDecoration(
                           labelText: "Kelas",
                           prefixIcon: const Icon(Icons.class_outlined),
                           border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                         ),
-                        items: _kelasOptions.map((k) => DropdownMenuItem(value: k, child: Text(k))).toList(),
+                        items: _kelasOptions.map((k) => DropdownMenuItem(value: k, child: Text(k, overflow: TextOverflow.ellipsis))).toList(),
                         onChanged: (val) => setState(() => _selectedKelas = val!),
                       ),
                       const SizedBox(height: 16),
@@ -1197,15 +1198,16 @@ class _KartuPelajarPageState extends State<KartuPelajarPage> {
                       DropdownButtonFormField<String>(
                         key: ValueKey("template_${_selectedKelas}_${_nipController.text}"),
                         initialValue: _selectedKelas.contains("MTS") ? "KLS I MTS" : (_selectedKelas.contains("MA") ? "KLS I MA" : "KLS I MI"),
+                        isExpanded: true,
                         decoration: InputDecoration(
                           labelText: "Unit Madrasah (Desain Template)",
                           prefixIcon: const Icon(Icons.school_outlined),
                           border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                         ),
                         items: const [
-                          DropdownMenuItem(value: "KLS I MI", child: Text("Madrasah Ibtidaiyah (MI)")),
-                          DropdownMenuItem(value: "KLS I MTS", child: Text("Madrasah Tsanawiyah (MTs)")),
-                          DropdownMenuItem(value: "KLS I MA", child: Text("Madrasah Aliyah (MA)")),
+                          DropdownMenuItem(value: "KLS I MI", child: Text("Madrasah Ibtidaiyah (MI)", overflow: TextOverflow.ellipsis)),
+                          DropdownMenuItem(value: "KLS I MTS", child: Text("Madrasah Tsanawiyah (MTs)", overflow: TextOverflow.ellipsis)),
+                          DropdownMenuItem(value: "KLS I MA", child: Text("Madrasah Aliyah (MA)", overflow: TextOverflow.ellipsis)),
                         ],
                         onChanged: (val) => setState(() => _selectedKelas = val!),
                       ),
@@ -1234,7 +1236,7 @@ class _KartuPelajarPageState extends State<KartuPelajarPage> {
                         ),
                       ),
                       const SizedBox(height: 16),
-
+ 
                       // Jenis Kelamin & Agama
                       Row(
                         children: [
@@ -1242,14 +1244,15 @@ class _KartuPelajarPageState extends State<KartuPelajarPage> {
                             child: DropdownButtonFormField<String>(
                               key: ValueKey("gender_${_selectedGender}_${_nipController.text}"),
                               initialValue: _selectedGender,
+                              isExpanded: true,
                               decoration: InputDecoration(
                                 labelText: "Jenis Kelamin",
                                 prefixIcon: const Icon(Icons.wc),
                                 border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                               ),
                               items: const [
-                                DropdownMenuItem(value: "Laki-laki", child: Text("Laki-laki")),
-                                DropdownMenuItem(value: "Perempuan", child: Text("Perempuan")),
+                                DropdownMenuItem(value: "Laki-laki", child: Text("Laki-laki", overflow: TextOverflow.ellipsis)),
+                                DropdownMenuItem(value: "Perempuan", child: Text("Perempuan", overflow: TextOverflow.ellipsis)),
                               ],
                               onChanged: (val) => setState(() => _selectedGender = val!),
                             ),
@@ -1259,19 +1262,20 @@ class _KartuPelajarPageState extends State<KartuPelajarPage> {
                             child: DropdownButtonFormField<String>(
                               key: ValueKey("agama_${_selectedAgama}_${_nipController.text}"),
                               initialValue: _selectedAgama,
+                              isExpanded: true,
                               decoration: InputDecoration(
                                 labelText: "Agama",
                                 prefixIcon: const Icon(Icons.church),
                                 border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                               ),
                               items: const [
-                                DropdownMenuItem(value: "Islam", child: Text("Islam")),
-                                DropdownMenuItem(value: "Kristen", child: Text("Kristen")),
-                                DropdownMenuItem(value: "Katolik", child: Text("Katolik")),
-                                DropdownMenuItem(value: "Hindu", child: Text("Hindu")),
-                                DropdownMenuItem(value: "Buddha", child: Text("Buddha")),
-                                DropdownMenuItem(value: "Khonghucu", child: Text("Khonghucu")),
-                                DropdownMenuItem(value: "Lainnya", child: Text("Lainnya")),
+                                DropdownMenuItem(value: "Islam", child: Text("Islam", overflow: TextOverflow.ellipsis)),
+                                DropdownMenuItem(value: "Kristen", child: Text("Kristen", overflow: TextOverflow.ellipsis)),
+                                DropdownMenuItem(value: "Katolik", child: Text("Katolik", overflow: TextOverflow.ellipsis)),
+                                DropdownMenuItem(value: "Hindu", child: Text("Hindu", overflow: TextOverflow.ellipsis)),
+                                DropdownMenuItem(value: "Buddha", child: Text("Buddha", overflow: TextOverflow.ellipsis)),
+                                DropdownMenuItem(value: "Khonghucu", child: Text("Khonghucu", overflow: TextOverflow.ellipsis)),
+                                DropdownMenuItem(value: "Lainnya", child: Text("Lainnya", overflow: TextOverflow.ellipsis)),
                               ],
                               onChanged: (val) => setState(() => _selectedAgama = val!),
                             ),

@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../services/system_service.dart';
 import 'login_page.dart';
 
@@ -18,7 +19,6 @@ class _ResetPasswordPageState extends State<ResetPasswordPage> {
   final _confirmPassController = TextEditingController();
   final _formKey = GlobalKey<FormState>();
 
-  String _selectedRole = 'Admin'; // 'Admin' atau 'Guru'
   bool _isLoading = false;
   bool _obscureNewPass = true;
   bool _obscureConfirmPass = true;
@@ -35,9 +35,7 @@ class _ResetPasswordPageState extends State<ResetPasswordPage> {
 
   String? _validateUsername(String? value) {
     if (value == null || value.isEmpty) {
-      return _selectedRole == 'Admin' 
-          ? 'Username tidak boleh kosong' 
-          : 'NIP tidak boleh kosong';
+      return 'Username atau NIP tidak boleh kosong';
     }
     if (value.trim().length < 3) {
       return 'Masukkan minimal 3 karakter';
@@ -80,17 +78,104 @@ class _ResetPasswordPageState extends State<ResetPasswordPage> {
     if (_formKey.currentState!.validate()) {
       setState(() => _isLoading = true);
 
+      final username = _usernameController.text.trim();
+      final email = _emailController.text.trim();
+      final newPassword = _newPassController.text;
+
       try {
         final systemService = SystemService();
+
+        // 1. If Firebase is available, reset password directly in Firestore
+        if (systemService.isFirebaseAvailable) {
+          final firestore = FirebaseFirestore.instance;
+
+          // Attempt to find in Admin first
+          final adminSnapshot = await firestore.collection('admin').get();
+          QueryDocumentSnapshot? targetDoc;
+          String matchedRole = 'admin';
+
+          for (var doc in adminSnapshot.docs) {
+            final data = doc.data();
+            final docEmail = (data['email'] as String? ?? '').toLowerCase();
+            final docUsername = (data['username'] as String? ?? '').toLowerCase();
+            final docNama = (data['nama_lengkap'] as String? ?? '').toLowerCase();
+
+            if (docEmail == email.toLowerCase() &&
+                (docUsername == username.toLowerCase() || docNama == username.toLowerCase())) {
+              targetDoc = doc;
+              matchedRole = 'admin';
+              break;
+            }
+          }
+
+          // If not found in Admin, search in Guru
+          if (targetDoc == null) {
+            final guruSnapshot = await firestore.collection('guru').get();
+            for (var doc in guruSnapshot.docs) {
+              final data = doc.data();
+              final docEmail = (data['email'] as String? ?? '').toLowerCase();
+              final docNip = (data['nip'] as String? ?? '').toLowerCase();
+              final docNama = (data['nama_guru'] as String? ?? data['nama'] as String? ?? '').toLowerCase();
+
+              if (docEmail == email.toLowerCase() &&
+                  (docNip == username.toLowerCase() || docNama == username.toLowerCase())) {
+                targetDoc = doc;
+                matchedRole = 'guru';
+                break;
+              }
+            }
+          }
+
+          if (targetDoc != null) {
+            await targetDoc.reference.update({'password': newPassword});
+          } else {
+            throw Exception("Akun tidak ditemukan atau email tidak sesuai.");
+          }
+
+          // Sync to local database / PHP backend in background if they have it
+          try {
+            await http.post(
+              Uri.parse('${systemService.baseUrl}/reset_password.php'),
+              headers: {'Content-Type': 'application/json'},
+              body: jsonEncode({
+                'username': username,
+                'email': email,
+                'role': matchedRole,
+                'new_password': newPassword,
+              }),
+            ).timeout(const Duration(seconds: 3));
+          } catch (e) {
+            debugPrint("Sync reset password ke database gagal (diabaikan karena Firebase sukses): $e");
+          }
+
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Row(
+                  children: [
+                    Icon(Icons.check_circle_outline, color: Colors.white),
+                    SizedBox(width: 8),
+                    Expanded(child: Text("Reset password berhasil di Firebase")),
+                  ],
+                ),
+                backgroundColor: Colors.green,
+                duration: Duration(seconds: 3),
+              ),
+            );
+            Navigator.pop(context);
+          }
+          return;
+        }
+
+        // 2. Fallback to local PHP API / XAMPP if Firebase is not active
         final response = await http
             .post(
               Uri.parse('${systemService.baseUrl}/reset_password.php'),
               headers: {'Content-Type': 'application/json'},
               body: jsonEncode({
-                'username': _usernameController.text.trim(),
-                'email': _emailController.text.trim(),
-                'role': _selectedRole.toLowerCase(),
-                'new_password': _newPassController.text,
+                'username': username,
+                'email': email,
+                'new_password': newPassword,
               }),
             )
             .timeout(const Duration(seconds: 5));
@@ -112,7 +197,7 @@ class _ResetPasswordPageState extends State<ResetPasswordPage> {
                   duration: const Duration(seconds: 3),
                 ),
               );
-              Navigator.pop(context); // Kembali ke login page
+              Navigator.pop(context);
             }
           } else {
             if (mounted) {
@@ -136,13 +221,17 @@ class _ResetPasswordPageState extends State<ResetPasswordPage> {
       } catch (e) {
         debugPrint("Koneksi reset password gagal: $e");
         if (mounted) {
+          String errorMessage = "Gagal terhubung ke database. Silakan periksa koneksi internet Anda.";
+          if (e.toString().contains("tidak ditemukan") || e.toString().contains("tidak sesuai")) {
+            errorMessage = e.toString().replaceAll("Exception: ", "");
+          }
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
+            SnackBar(
               content: Row(
                 children: [
-                  Icon(Icons.wifi_off_rounded, color: Colors.white),
-                  SizedBox(width: 8),
-                  Expanded(child: Text("Gagal terhubung ke database. Pastikan XAMPP Anda aktif.")),
+                  const Icon(Icons.wifi_off_rounded, color: Colors.white),
+                  const SizedBox(width: 8),
+                  Expanded(child: Text(errorMessage)),
                 ],
               ),
               backgroundColor: Colors.redAccent,
@@ -266,92 +355,6 @@ class _ResetPasswordPageState extends State<ResetPasswordPage> {
                         ),
                         const SizedBox(height: 24),
 
-                        // Role Selector Tab (Premium Segmented Control)
-                        Container(
-                          padding: const EdgeInsets.all(4),
-                          decoration: BoxDecoration(
-                            color: Colors.grey.shade200,
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: Row(
-                            children: [
-                              Expanded(
-                                child: InkWell(
-                                  onTap: () {
-                                    setState(() {
-                                      _selectedRole = 'Admin';
-                                    });
-                                  },
-                                  borderRadius: BorderRadius.circular(10),
-                                  child: Container(
-                                    padding: const EdgeInsets.symmetric(vertical: 10),
-                                    decoration: BoxDecoration(
-                                      color: _selectedRole == 'Admin' ? Colors.white : Colors.transparent,
-                                      borderRadius: BorderRadius.circular(10),
-                                      boxShadow: _selectedRole == 'Admin'
-                                          ? [
-                                              BoxShadow(
-                                                color: Colors.black.withValues(alpha: 0.05),
-                                                blurRadius: 4,
-                                                offset: const Offset(0, 2),
-                                              ),
-                                            ]
-                                          : null,
-                                    ),
-                                    child: Center(
-                                      child: Text(
-                                        "Administrator",
-                                        style: TextStyle(
-                                          fontWeight: FontWeight.bold,
-                                          fontSize: 13,
-                                          color: _selectedRole == 'Admin' ? const Color(0xFF2196F3) : Colors.grey.shade600,
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              ),
-                              Expanded(
-                                child: InkWell(
-                                  onTap: () {
-                                    setState(() {
-                                      _selectedRole = 'Guru';
-                                    });
-                                  },
-                                  borderRadius: BorderRadius.circular(10),
-                                  child: Container(
-                                    padding: const EdgeInsets.symmetric(vertical: 10),
-                                    decoration: BoxDecoration(
-                                      color: _selectedRole == 'Guru' ? Colors.white : Colors.transparent,
-                                      borderRadius: BorderRadius.circular(10),
-                                      boxShadow: _selectedRole == 'Guru'
-                                          ? [
-                                              BoxShadow(
-                                                color: Colors.black.withValues(alpha: 0.05),
-                                                blurRadius: 4,
-                                                offset: const Offset(0, 2),
-                                              ),
-                                            ]
-                                          : null,
-                                    ),
-                                    child: Center(
-                                      child: Text(
-                                        "Guru",
-                                        style: TextStyle(
-                                          fontWeight: FontWeight.bold,
-                                          fontSize: 13,
-                                          color: _selectedRole == 'Guru' ? const Color(0xFF2196F3) : Colors.grey.shade600,
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(height: 20),
-
                         Form(
                           key: _formKey,
                           child: Column(
@@ -364,10 +367,10 @@ class _ResetPasswordPageState extends State<ResetPasswordPage> {
                                 keyboardType: TextInputType.text,
                                 style: const TextStyle(fontSize: 15, color: Color(0xFF1F2937)),
                                 decoration: InputDecoration(
-                                  hintText: _selectedRole == 'Admin' ? "Username Admin" : "NIP Guru",
+                                  hintText: "Username / NIP",
                                   hintStyle: TextStyle(color: Colors.grey.shade400, fontSize: 15),
                                   prefixIcon: Icon(
-                                    _selectedRole == 'Admin' ? Icons.person_outline_rounded : Icons.badge_outlined,
+                                    Icons.person_outline_rounded,
                                     color: Colors.grey.shade500,
                                   ),
                                   contentPadding: const EdgeInsets.symmetric(vertical: 16, horizontal: 16),

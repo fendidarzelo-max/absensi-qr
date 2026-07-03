@@ -31,6 +31,33 @@ class Siswa {
     this.fotoPath,
   });
 
+  String get kelasDisplay {
+    final k = kelas.trim();
+    if (k.toUpperCase().contains('MI') || 
+        k.toUpperCase().contains('MTS') || 
+        k.toUpperCase().contains('MA')) {
+      return k;
+    }
+    
+    final clean = k.toUpperCase().replaceAll('KLS', '').replaceAll('KELAS', '').trim();
+    if (clean == '1' || clean == '2' || clean == '3' || clean == '4' || clean == '5' || clean == '6' ||
+        clean == 'I' || clean == 'II' || clean == 'III' || clean == 'IV' || clean == 'V' || clean == 'VI') {
+      return k.contains('KLS') ? '$k MI' : 'KLS $k MI';
+    }
+    
+    if (clean == '7' || clean == '8' || clean == '9' ||
+        clean == 'VII' || clean == 'VIII' || clean == 'IX') {
+      return k.contains('KLS') ? '$k MTS' : 'KLS $k MTS';
+    }
+    
+    if (clean == '10' || clean == '11' || clean == '12' ||
+        clean == 'X' || clean == 'XI' || clean == 'XII') {
+      return k.contains('KLS') ? '$k MA' : 'KLS $k MA';
+    }
+    
+    return k;
+  }
+
   Siswa copyWith({
     String? nisn,
     String? nama,

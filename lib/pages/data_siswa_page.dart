@@ -95,7 +95,7 @@ class _DataSiswaPageState extends State<DataSiswaPage> {
                               ),
                             ),
                             title: Text(siswa.nama, style: const TextStyle(fontWeight: FontWeight.bold)),
-                            subtitle: Text("NISN: ${siswa.nisn} • Kelas ${siswa.kelas}"),
+                            subtitle: Text("NISN: ${siswa.nisn} • Kelas ${siswa.kelasDisplay}"),
                             trailing: const Icon(Icons.arrow_forward_ios, size: 14, color: Colors.grey),
                           ),
                         ),

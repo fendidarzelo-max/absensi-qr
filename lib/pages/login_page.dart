@@ -6,9 +6,12 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:crypto/crypto.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:local_auth/local_auth.dart';
 import '../services/system_service.dart';
 import 'dashboard_page.dart';
 import 'reset_password_page.dart';
+import 'register_page.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -28,6 +31,11 @@ class _LoginPageState extends State<LoginPage> with SingleTickerProviderStateMix
   Offset? _mousePosition;
   late AnimationController _logoController;
 
+  // Biometric variables
+  final LocalAuthentication _auth = LocalAuthentication();
+  bool _canCheckBiometrics = false;
+  bool _hasSavedCredentials = false;
+
   @override
   void initState() {
     super.initState();
@@ -42,16 +50,80 @@ class _LoginPageState extends State<LoginPage> with SingleTickerProviderStateMix
     try {
       final prefs = await SharedPreferences.getInstance();
       final savedEmail = prefs.getString('saved_email');
+      final savedPassword = prefs.getString('saved_password');
       final keepLoggedIn = prefs.getBool('keep_logged_in') ?? true;
+      
+      bool canCheck = false;
+      try {
+        canCheck = await _auth.canCheckBiometrics || await _auth.isDeviceSupported();
+      } catch (e) {
+        debugPrint("Error checking biometrics: $e");
+      }
+
       if (mounted) {
         setState(() {
           _emailController.text = (savedEmail == null || savedEmail.isEmpty) ? '' : savedEmail;
           _passController.text = ''; // Selalu kosongkan kolom password saat halaman dibuka
           _keepLoggedIn = keepLoggedIn;
+          _canCheckBiometrics = canCheck;
+          _hasSavedCredentials = savedEmail != null && savedEmail.isNotEmpty && savedPassword != null && savedPassword.isNotEmpty;
         });
+
+        // Trigger biometric login automatically if there are saved credentials and keepLoggedIn is true
+        if (_canCheckBiometrics && _hasSavedCredentials && keepLoggedIn) {
+          Future.delayed(const Duration(milliseconds: 600), () {
+            _authenticateWithBiometrics();
+          });
+        }
       }
     } catch (e) {
       debugPrint("Error loading saved email: $e");
+    }
+  }
+
+  Future<void> _authenticateWithBiometrics() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final savedEmail = prefs.getString('saved_email');
+      final savedPassword = prefs.getString('saved_password');
+
+      if (savedEmail == null || savedEmail.isEmpty || savedPassword == null || savedPassword.isEmpty) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text("Belum ada kredensial sidik jari yang disimpan. Silakan login manual terlebih dahulu."),
+              backgroundColor: Colors.orangeAccent,
+            ),
+          );
+        }
+        return;
+      }
+
+      final bool didAuthenticate = await _auth.authenticate(
+        localizedReason: 'Silakan pindai sidik jari atau gunakan kunci perangkat untuk masuk',
+        persistAcrossBackgrounding: true,
+        biometricOnly: false, // Allows pattern, PIN, passcode as fallbacks
+      );
+
+      if (didAuthenticate) {
+        if (mounted) {
+          setState(() {
+            _emailController.text = savedEmail;
+            _passController.text = savedPassword;
+          });
+          _handleLogin();
+        }
+      }
+    } catch (e) {
+      debugPrint("Error biometrik: $e");
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text("Gagal autentikasi sidik jari: $e"),
+            backgroundColor: Colors.redAccent,
+          ),
+        );
+      }
     }
   }
 
@@ -60,12 +132,14 @@ class _LoginPageState extends State<LoginPage> with SingleTickerProviderStateMix
       final prefs = await SharedPreferences.getInstance();
       if (_keepLoggedIn) {
         await prefs.setString('saved_email', _emailController.text.trim());
+        await prefs.setString('saved_password', password);
         // Simpan hash SHA-256 dari password untuk verifikasi offline yang aman
         final passwordBytes = utf8.encode(password);
         final passwordHash = sha256.convert(passwordBytes).toString();
         await prefs.setString('saved_password_hash', passwordHash);
       } else {
         await prefs.remove('saved_email');
+        await prefs.remove('saved_password');
         await prefs.remove('saved_password_hash');
       }
       await prefs.setBool('keep_logged_in', _keepLoggedIn);
@@ -100,146 +174,7 @@ class _LoginPageState extends State<LoginPage> with SingleTickerProviderStateMix
     }
   }
 
-  void _showIpConfigDialog() {
-    final systemService = SystemService();
-    final ipController = TextEditingController(text: systemService.ipAddress);
-    String testStatus = "";
-    Color testColor = Colors.grey;
-    bool isTesting = false;
 
-    showDialog(
-      context: context,
-      builder: (context) {
-        return StatefulBuilder(
-          builder: (context, setModalState) {
-            return AlertDialog(
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-              title: const Row(
-                children: [
-                  Icon(Icons.settings_ethernet_rounded, color: Color(0xFF10B981)),
-                  SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      "Konfigurasi IP Server",
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              content: SingleChildScrollView(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      "Masukkan alamat IP server database (komputer/laptop yang menjalankan XAMPP):",
-                      style: TextStyle(fontSize: 13, color: Colors.grey),
-                    ),
-                    const SizedBox(height: 16),
-                    TextField(
-                      controller: ipController,
-                      decoration: const InputDecoration(
-                        labelText: "IP Address / Hostname",
-                        hintText: "Contoh: 192.168.1.100 atau localhost",
-                        border: OutlineInputBorder(),
-                        prefixIcon: Icon(Icons.link_rounded),
-                      ),
-                      keyboardType: TextInputType.text,
-                    ),
-                    if (testStatus.isNotEmpty) ...[
-                      const SizedBox(height: 12),
-                      Text(
-                        testStatus,
-                        style: TextStyle(
-                          fontSize: 13,
-                          color: testColor,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ],
-                  ],
-                ),
-              ),
-              actions: [
-                TextButton(
-                  onPressed: isTesting ? null : () => Navigator.pop(context),
-                  child: const Text("Batal"),
-                ),
-                TextButton(
-                  onPressed: isTesting
-                      ? null
-                      : () async {
-                          setModalState(() {
-                            isTesting = true;
-                            testStatus = "Menguji koneksi...";
-                            testColor = Colors.orange;
-                          });
-
-                          final ip = ipController.text.trim();
-                          if (ip.isEmpty) {
-                            setModalState(() {
-                              isTesting = false;
-                              testStatus = "IP tidak boleh kosong.";
-                              testColor = Colors.red;
-                            });
-                            return;
-                          }
-
-                          try {
-                            final response = await http
-                                .get(Uri.parse('http://$ip/absensi_api/login.php'))
-                                .timeout(const Duration(seconds: 4));
-                            // If we get any response, the host is reachable!
-                            setModalState(() {
-                              isTesting = false;
-                              testStatus = "Koneksi Berhasil! Server aktif (HTTP ${response.statusCode})";
-                              testColor = Colors.green;
-                            });
-                          } catch (e) {
-                            setModalState(() {
-                              isTesting = false;
-                              testStatus = "Koneksi Gagal. Periksa Wi-Fi & Windows Firewall.";
-                              testColor = Colors.red;
-                            });
-                          }
-                        },
-                  child: const Text("Tes Koneksi"),
-                ),
-                ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF10B981),
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                  ),
-                  onPressed: isTesting
-                      ? null
-                      : () async {
-                          final newIp = ipController.text.trim();
-                          if (newIp.isNotEmpty) {
-                            await systemService.setCustomIp(newIp);
-                            if (context.mounted) {
-                              Navigator.pop(context);
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(
-                                  content: Text("IP Server berhasil diubah ke: $newIp"),
-                                  backgroundColor: const Color(0xFF10B981),
-                                ),
-                              );
-                            }
-                          }
-                        },
-                  child: const Text("Simpan"),
-                ),
-              ],
-            );
-          },
-        );
-      },
-    );
-  }
 
   void _navigateToDashboard() {
     Navigator.pushReplacement(
@@ -272,6 +207,88 @@ class _LoginPageState extends State<LoginPage> with SingleTickerProviderStateMix
     if (_formKey.currentState!.validate()) {
       setState(() => _isLoading = true);
       final systemService = SystemService();
+
+      if (systemService.isFirebaseAvailable) {
+        try {
+          final firestore = FirebaseFirestore.instance;
+          final username = _emailController.text.trim();
+          final password = _passController.text;
+
+          // Query Admin collection
+          QuerySnapshot adminQuery;
+          if (username.contains('@')) {
+            adminQuery = await firestore
+                .collection('admin')
+                .where('email', isEqualTo: username)
+                .get();
+          } else {
+            adminQuery = await firestore
+                .collection('admin')
+                .where('username', isEqualTo: username)
+                .get();
+          }
+
+          if (adminQuery.docs.isNotEmpty) {
+            final userDoc = adminQuery.docs.first;
+            final Map<String, dynamic> userData = userDoc.data() as Map<String, dynamic>;
+            if (userData['password'] == password) {
+              await systemService.updateAdminProfile(
+                name: userData['nama_lengkap'] ?? 'Administrator',
+                role: userData['role'] ?? 'Administrator Utama',
+                username: userData['username'] ?? username,
+                id: 1,
+                email: userData['email'] ?? 'admin@sekolah.sch.id',
+                foto: userData['foto'] ?? '',
+                syncToBackend: false,
+              );
+              await _saveLoginCredentials(password);
+              if (mounted) {
+                _navigateToDashboard();
+              }
+              return;
+            }
+          }
+
+          // Query Guru collection if not admin
+          final guruQuery = await firestore
+              .collection('guru')
+              .where('nip', isEqualTo: username)
+              .get();
+          if (guruQuery.docs.isNotEmpty) {
+            final guruDoc = guruQuery.docs.first;
+            final Map<String, dynamic> userData = guruDoc.data();
+            if (userData['password'] == password) {
+              await systemService.updateAdminProfile(
+                name: userData['nama_guru'] ?? userData['nama'] ?? 'Guru',
+                role: userData['hak_akses'] ?? 'Guru',
+                username: userData['nip'] ?? username,
+                id: 2,
+                email: userData['email'] ?? '$username@sekolah.sch.id',
+                foto: '',
+                syncToBackend: false,
+              );
+              await _saveLoginCredentials(password);
+              if (mounted) {
+                _navigateToDashboard();
+              }
+              return;
+            }
+          }
+
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text("Username/Email atau Password salah (Firebase)"),
+                backgroundColor: Colors.redAccent,
+              ),
+            );
+          }
+          setState(() => _isLoading = false);
+          return;
+        } catch (e) {
+          debugPrint("Firebase login error: $e");
+        }
+      }
 
       try {
         final response = await http
@@ -384,7 +401,7 @@ class _LoginPageState extends State<LoginPage> with SingleTickerProviderStateMix
                       SizedBox(width: 8),
                       Expanded(
                         child: Text(
-                          "Gagal terhubung ke database. Silakan pastikan server XAMPP aktif dan coba lagi.",
+                          "Gagal terhubung ke database. Silakan periksa koneksi internet Anda.",
                         ),
                       ),
                     ],
@@ -430,30 +447,7 @@ class _LoginPageState extends State<LoginPage> with SingleTickerProviderStateMix
              // Background plexus teknologi interaktif
              TechInteractiveBackground(mousePosition: _mousePosition),
  
-             // Tombol Pengaturan IP Server (untuk HP/Klien)
-             Positioned(
-               top: 16,
-               right: 16,
-               child: SafeArea(
-                 child: Container(
-                   decoration: BoxDecoration(
-                     color: Colors.white.withValues(alpha: 0.8),
-                     shape: BoxShape.circle,
-                     boxShadow: [
-                       BoxShadow(
-                         color: Colors.black.withValues(alpha: 0.1),
-                         blurRadius: 10,
-                       )
-                     ],
-                   ),
-                   child: IconButton(
-                     icon: const Icon(Icons.settings_ethernet_rounded, color: Color(0xFF10B981)),
-                     tooltip: "Pengaturan IP Server",
-                     onPressed: _showIpConfigDialog,
-                   ),
-                 ),
-               ),
-             ),
+
  
              // Konten Form Login
              SafeArea(
@@ -787,16 +781,55 @@ class _LoginPageState extends State<LoginPage> with SingleTickerProviderStateMix
                                   ),
                           ),
                         ),
-                        const SizedBox(height: 32),
+                        const SizedBox(height: 24),
+
+                        // Tombol Daftar Akun Baru
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Text(
+                              "Belum memiliki akun? ",
+                              style: TextStyle(color: Colors.grey.shade600, fontSize: 13),
+                            ),
+                            GestureDetector(
+                              onTap: () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (context) => const RegisterPage(),
+                                  ),
+                                );
+                              },
+                              child: const Text(
+                                "Daftar disini",
+                                style: TextStyle(
+                                  color: Color(0xFF2196F3),
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 13,
+                                ),
+                              ),
+                            )
+                          ],
+                        ),
+                        const SizedBox(height: 24),
 
                         // Disclaimer bawah
-                        Text(
-                          "Dengan login, Anda menyetujui syarat dan ketentuan\naplikasi Madrasah Digital",
+                        RichText(
                           textAlign: TextAlign.center,
-                          style: TextStyle(
-                            color: Colors.grey.shade500,
-                            fontSize: 12,
-                            height: 1.4,
+                          text: TextSpan(
+                            style: TextStyle(
+                              color: Colors.grey.shade500,
+                              fontSize: 12,
+                              height: 1.4,
+                              fontFamily: 'Sans-Serif',
+                            ),
+                            children: const [
+                              TextSpan(text: "Dengan login, Anda menyetujui syarat dan ketentuan aplikasi "),
+                              TextSpan(
+                                text: "MADRASAH MIFTAHUL ULUM AN-NASHAR",
+                                style: TextStyle(fontStyle: FontStyle.italic),
+                              ),
+                            ],
                           ),
                         ),
                       ],

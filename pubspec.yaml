@@ -2,7 +2,7 @@ name: absensi
 description: "A new Flutter project."
 publish_to: 'none'
 
-version: 1.0.0+6
+version: 1.0.1+16
 
 environment:
   sdk: ^3.11.1
@@ -19,6 +19,9 @@ dependencies:
   local_auth: ^3.0.1
   http: ^1.6.0
   crypto: ^3.0.3
+  firebase_core: ^2.27.0
+  cloud_firestore: ^4.15.5
+  flutter_native_splash: ^2.4.0
 
 dev_dependencies:
   flutter_test:
@@ -29,18 +32,31 @@ dev_dependencies:
 flutter_launcher_icons:
   android: "launcher_icon"
   ios: true
-  image_path: "assets/logo.png"
+  image_path: "assets/log.png"
+
+
+flutter_native_splash:
+  color: "#ffffff" 
+  image: "assets/log.png" 
+  
+  android_12:
+    color: "#ffffff"
+    image: "assets/log.png"
 
 flutter:
   uses-material-design: true
   assets:
     - assets/logo.png
+    - assets/log.png
     - assets/logo_login.png
     - assets/card_front.jpg
     - assets/card_back.jpg
-    - assets/card_front_mi.png
-    - assets/card_front_mts.png
-    - assets/card_front_ma.png
+    - assets/card_front_mi_v2.png
+    - assets/card_back_mi_v2.png
+    - assets/card_front_mts_v2.png
+    - assets/card_front_ma_v2.png
+    - assets/card_back_mts_v2.png
+    - assets/card_back_ma_v2.png
     - assets/card_front_mts.jpg
     - assets/card_back_mts.jpg
     - assets/card_front_ma.jpg
