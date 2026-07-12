@@ -1,11 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show rootBundle;
+import 'dart:convert';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 import '../services/system_service.dart';
 import '../utils/file_saver.dart';
 import '../models/siswa.dart';
+import '../models/guru.dart';
+
 
 class EksporDataPage extends StatefulWidget {
   const EksporDataPage({super.key});
@@ -51,6 +54,20 @@ class _EksporDataPageState extends State<EksporDataPage> {
     final now = DateTime.now();
     _selectedYear = now.year;
     _selectedMonth = _monthsList[now.month - 1];
+    _systemService.addListener(_onServiceChanged);
+    _systemService.refresh();
+  }
+
+  void _onServiceChanged() {
+    if (mounted) {
+      setState(() {});
+    }
+  }
+
+  @override
+  void dispose() {
+    _systemService.removeListener(_onServiceChanged);
+    super.dispose();
   }
 
   String _formatDateIndo(DateTime date) {
@@ -280,9 +297,20 @@ class _EksporDataPageState extends State<EksporDataPage> {
         return;
       }
 
-      csvBuilder.writeln("Tanggal,Waktu,Nama,Tipe,Kelas");
-      for (var log in logsToExport) {
-        csvBuilder.writeln("${log.tanggal},${log.waktu},\"${log.nama}\",${log.tipe},${log.kelas ?? "-"}");
+      if (_filterType == "Guru") {
+        csvBuilder.writeln("Tanggal,Waktu,Nama,Tipe,MI,MTS,MA");
+        for (var log in logsToExport) {
+          final counts = _getGuruLogCountsForRecord(log);
+          final miStr = counts["MI"]! > 0 ? counts["MI"].toString() : "-";
+          final mtsStr = counts["MTS"]! > 0 ? counts["MTS"].toString() : "-";
+          final maStr = counts["MA"]! > 0 ? counts["MA"].toString() : "-";
+          csvBuilder.writeln("${log.tanggal},${log.waktu},\"${log.nama}\",${log.tipe},$miStr,$mtsStr,$maStr");
+        }
+      } else {
+        csvBuilder.writeln("Tanggal,Waktu,Nama,Tipe,Kelas");
+        for (var log in logsToExport) {
+          csvBuilder.writeln("${log.tanggal},${log.waktu},\"${log.nama}\",${log.tipe},${_getLogKelasDisplay(log)}");
+        }
       }
     }
 
@@ -456,6 +484,7 @@ class _EksporDataPageState extends State<EksporDataPage> {
 
   void _exportPDF(BuildContext context, String title, List<AttendanceLog> logsToExport) async {
     final bool isStudentFilter = _filterType == "Siswa";
+    final bool isGuruFilter = _filterType == "Guru";
     final String reportTitle;
     if (_filterType == "Siswa") {
       reportTitle = "ABSENSI SISWA/SISWI";
@@ -486,6 +515,8 @@ class _EksporDataPageState extends State<EksporDataPage> {
     ];
     final tanggalCetak = "${now.day} ${months[now.month]} ${now.year}";
     final String kepalaMadrasah = _getKepalaMadrasah(_selectedKelas);
+
+    // Unused variables removed
 
     pw.MemoryImage? logoImage;
     try {
@@ -583,10 +614,13 @@ class _EksporDataPageState extends State<EksporDataPage> {
             pw.Row(
               mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
               children: [
-                pw.Text(
-                  "Kelas : ${_selectedKelas != "Semua Kelas" ? _selectedKelas : "Semua Kelas"}",
-                  style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 9),
-                ),
+                if (!isGuruFilter)
+                  pw.Text(
+                    "Kelas : ${_selectedKelas != "Semua Kelas" ? _selectedKelas : "Semua Kelas"}",
+                    style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 9),
+                  )
+                else
+                  pw.SizedBox(),
                 pw.Text(
                   "Bulan : ${_selectedPeriod != "Hari Ini" && _selectedPeriod != "Bulan Ini" ? _selectedPeriod : "${months[now.month]} ${now.year}"}",
                   style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 9),
@@ -771,8 +805,44 @@ class _EksporDataPageState extends State<EksporDataPage> {
                     ],
                   )
                 : pw.TableHelper.fromTextArray(
-                    headers: ["Tanggal", "Waktu", "Nama Lengkap", "Tipe", "Kelas"],
-                    data: logsToExport.map((l) => [l.tanggal, l.waktu, l.nama, l.tipe, l.kelas ?? "-"]).toList(),
+                    headers: () {
+                      if (!isGuruFilter) {
+                        return ["Tanggal", "Waktu", "Nama Lengkap", "Tipe", "Kelas"];
+                      }
+                      if (_selectedKelas == "MI") {
+                        return ["Tanggal", "Waktu", "Nama Lengkap", "Tipe", "MI"];
+                      } else if (_selectedKelas == "MTS") {
+                        return ["Tanggal", "Waktu", "Nama Lengkap", "Tipe", "MTS"];
+                      } else if (_selectedKelas == "MA") {
+                        return ["Tanggal", "Waktu", "Nama Lengkap", "Tipe", "MA"];
+                      } else {
+                        return ["Tanggal", "Waktu", "Nama Lengkap", "Tipe", "MI", "MTS", "MA"];
+                      }
+                    }(),
+                    data: () {
+                      final tableData = logsToExport.map((l) {
+                        if (isGuruFilter) {
+                          final counts = _getGuruLogCountsForRecord(l);
+                          final miVal = counts["MI"]! > 0 ? counts["MI"].toString() : "-";
+                          final mtsVal = counts["MTS"]! > 0 ? counts["MTS"].toString() : "-";
+                          final maVal = counts["MA"]! > 0 ? counts["MA"].toString() : "-";
+
+                          if (_selectedKelas == "MI") {
+                            return [l.tanggal, l.waktu, l.nama, l.tipe, miVal];
+                          } else if (_selectedKelas == "MTS") {
+                            return [l.tanggal, l.waktu, l.nama, l.tipe, mtsVal];
+                          } else if (_selectedKelas == "MA") {
+                            return [l.tanggal, l.waktu, l.nama, l.tipe, maVal];
+                          } else {
+                            return [l.tanggal, l.waktu, l.nama, l.tipe, miVal, mtsVal, maVal];
+                          }
+                        } else {
+                          return [l.tanggal, l.waktu, l.nama, l.tipe, _getLogKelasDisplay(l)];
+                        }
+                      }).toList();
+
+                      return tableData;
+                    }(),
                     border: pw.TableBorder.all(width: 0.5, color: PdfColors.grey),
                     headerStyle: pw.TextStyle(fontWeight: pw.FontWeight.bold),
                     cellHeight: 25,
@@ -786,14 +856,30 @@ class _EksporDataPageState extends State<EksporDataPage> {
                 pw.Column(
                   crossAxisAlignment: pw.CrossAxisAlignment.center,
                   children: [
-                    pw.Text("Sampang, $tanggalCetak", style: const pw.TextStyle(fontSize: 10)),
-                    pw.SizedBox(height: 4),
-                    pw.Text("Kepala Madrasah,", style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 10)),
-                    pw.SizedBox(height: 50),
                     pw.Text(
-                      kepalaMadrasah,
-                      style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 10, decoration: pw.TextDecoration.underline),
+                      () {
+                        final k = _selectedKelas.toUpperCase();
+                        if (k.contains("MI")) {
+                          return "Madrasah Ibtidaiyah Miftahul Ulum An-Nashar, $tanggalCetak";
+                        } else if (k.contains("MTS")) {
+                          return "Madrasah Tsanawiyah Miftahul Ulum An-Nashar, $tanggalCetak";
+                        } else if (k.contains("MA")) {
+                          return "Madrasah Aliyah Miftahul Ulum An-Nashar, $tanggalCetak";
+                        } else {
+                          return "Miftahul Ulum An-Nashar, $tanggalCetak";
+                        }
+                      }(),
+                      style: const pw.TextStyle(fontSize: 10),
                     ),
+                    if (!isGuruFilter) ...[
+                      pw.SizedBox(height: 4),
+                      pw.Text("Kepala Madrasah,", style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 10)),
+                      pw.SizedBox(height: 50),
+                      pw.Text(
+                        kepalaMadrasah,
+                        style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 10, decoration: pw.TextDecoration.underline),
+                      ),
+                    ],
                   ],
                 ),
               ],
@@ -856,9 +942,15 @@ class _EksporDataPageState extends State<EksporDataPage> {
       }
     } else if (_filterType == "Guru") {
       filteredLogs = filteredLogs.where((l) => l.tipe == "Guru").toList();
+      if (_selectedKelas != "Semua Kelas") {
+        filteredLogs = filteredLogs.where((l) => _getLogKelasDisplay(l).toUpperCase().contains(_selectedKelas.toUpperCase())).toList();
+      }
     }
 
     final bool isMobile = MediaQuery.of(context).size.width < 750;
+    final dropdownItems = _filterType == "Guru"
+        ? ["Semua Kelas", "MI", "MTS", "MA"]
+        : ["Semua Kelas", ..._systemService.siswaList.map((s) => s.kelasDisplay).toSet()];
 
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAFC),
@@ -1079,7 +1171,7 @@ class _EksporDataPageState extends State<EksporDataPage> {
                       ),
                     ],
                   ),
-            if (_filterType == "Siswa") ...[
+            if (_filterType == "Siswa" || _filterType == "Guru") ...[
               const SizedBox(height: 12),
               isMobile
                   ? Column(
@@ -1090,8 +1182,8 @@ class _EksporDataPageState extends State<EksporDataPage> {
                             const Text("Filter Kelas:", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Color(0xFF102C57))),
                             const SizedBox(width: 12),
                             DropdownButton<String>(
-                              value: _selectedKelas,
-                              items: ["Semua Kelas", ..._systemService.siswaList.map((s) => s.kelasDisplay).toSet()].map((kelas) {
+                              value: dropdownItems.contains(_selectedKelas) ? _selectedKelas : "Semua Kelas",
+                              items: dropdownItems.map((kelas) {
                                 return DropdownMenuItem<String>(
                                   value: kelas,
                                   child: Text(kelas),
@@ -1112,7 +1204,7 @@ class _EksporDataPageState extends State<EksporDataPage> {
                           width: double.infinity,
                           child: TextField(
                             decoration: InputDecoration(
-                              hintText: "Cari nama siswa...",
+                              hintText: _filterType == "Guru" ? "Cari nama guru..." : "Cari nama siswa...",
                               prefixIcon: const Icon(Icons.search, size: 18),
                               isDense: true,
                               contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
@@ -1132,8 +1224,8 @@ class _EksporDataPageState extends State<EksporDataPage> {
                         const Text("Filter Kelas:", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Color(0xFF102C57))),
                         const SizedBox(width: 12),
                         DropdownButton<String>(
-                          value: _selectedKelas,
-                          items: ["Semua Kelas", ..._systemService.siswaList.map((s) => s.kelasDisplay).toSet()].map((kelas) {
+                          value: dropdownItems.contains(_selectedKelas) ? _selectedKelas : "Semua Kelas",
+                          items: dropdownItems.map((kelas) {
                             return DropdownMenuItem<String>(
                               value: kelas,
                               child: Text(kelas),
@@ -1152,7 +1244,7 @@ class _EksporDataPageState extends State<EksporDataPage> {
                           width: 220,
                           child: TextField(
                             decoration: InputDecoration(
-                              hintText: "Cari nama siswa...",
+                              hintText: _filterType == "Guru" ? "Cari nama guru..." : "Cari nama siswa...",
                               prefixIcon: const Icon(Icons.search, size: 18),
                               isDense: true,
                               contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
@@ -1306,6 +1398,10 @@ class _EksporDataPageState extends State<EksporDataPage> {
                             ),
                             title: Text(log.nama, style: const TextStyle(fontWeight: FontWeight.bold)),
                             subtitle: Text("Tanggal: ${log.tanggal} • Waktu: ${log.waktu} • Tipe: ${log.tipe}"),
+                            trailing: IconButton(
+                              icon: const Icon(Icons.delete_outline, color: Colors.redAccent),
+                              onPressed: () => _confirmDeleteLog(context, log),
+                            ),
                           );
                         },
                       ),
@@ -1340,6 +1436,106 @@ class _EksporDataPageState extends State<EksporDataPage> {
         ],
       ),
     );
+  }
+
+  void _confirmDeleteLog(BuildContext context, AttendanceLog log) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text("Hapus Log Kehadiran"),
+        content: Text("Apakah Anda yakin ingin menghapus log kehadiran ${log.nama} (${log.waktu})?"),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text("Batal"),
+          ),
+          TextButton(
+            onPressed: () async {
+              Navigator.pop(context);
+              final success = await _systemService.deleteAttendanceLog(log);
+              if (context.mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(success ? "Log berhasil dihapus" : "Gagal menghapus log"),
+                    backgroundColor: success ? Colors.green : Colors.red,
+                  ),
+                );
+                setState(() {});
+              }
+            },
+            child: const Text("Hapus", style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _getLogKelasDisplay(AttendanceLog log) {
+    if (log.kelas != null && log.kelas!.isNotEmpty) {
+      return log.kelas!;
+    }
+    if (log.tipe == "Guru") {
+      final g = _systemService.guruList.firstWhere(
+        (element) => element.nama.trim().toLowerCase() == log.nama.trim().toLowerCase(),
+        orElse: () => const Guru(nip: "", nama: "", mapel: "", kelas: "", status: ""),
+      );
+      if (g.nip.isNotEmpty) {
+        final days = {
+          DateTime.sunday: 'Ahad',
+          DateTime.monday: 'Senin',
+          DateTime.tuesday: 'Selasa',
+          DateTime.wednesday: 'Rabu',
+          DateTime.thursday: 'Kamis',
+          DateTime.friday: 'Jumat',
+          DateTime.saturday: 'Sabtu',
+        };
+        final hariLog = days[log.timestamp.weekday] ?? 'Senin';
+        if (g.jadwalMengajar != null && g.jadwalMengajar!.isNotEmpty) {
+          try {
+            final decoded = jsonDecode(g.jadwalMengajar!) as Map<String, dynamic>;
+            // Try specific day
+            if (decoded.containsKey(hariLog) && decoded[hariLog] is List && (decoded[hariLog] as List).isNotEmpty) {
+              return (decoded[hariLog] as List).join(", ");
+            }
+            // Fallback: Collect all levels from entire weekly schedule
+            final Set<String> allLevels = {};
+            decoded.forEach((day, levels) {
+              if (levels is List) {
+                for (var lvl in levels) {
+                  allLevels.add(lvl.toString());
+                }
+              }
+            });
+            if (allLevels.isNotEmpty) {
+              return allLevels.join(", ");
+            }
+          } catch (_) {}
+        }
+      }
+      if (g.kelas.isNotEmpty) {
+        return g.kelas;
+      }
+    }
+    return "-";
+  }
+
+  Map<String, int> _getGuruLogCountsForRecord(AttendanceLog log) {
+    final Map<String, int> counts = {"MI": 0, "MTS": 0, "MA": 0};
+    final String k = _getLogKelasDisplay(log).toUpperCase();
+    
+    if (_selectedKelas == "MI") {
+      if (k.contains("MI")) counts["MI"] = 1;
+    } else if (_selectedKelas == "MTS") {
+      if (k.contains("MTS")) counts["MTS"] = 1;
+    } else if (_selectedKelas == "MA") {
+      if (k.contains("MA")) counts["MA"] = 1;
+    } else {
+      // Semua Kelas
+      if (k.contains("MI")) counts["MI"] = 1;
+      if (k.contains("MTS")) counts["MTS"] = 1;
+      if (k.contains("MA")) counts["MA"] = 1;
+    }
+    return counts;
   }
 
   String _getKepalaMadrasah(String kelas) {
@@ -1687,7 +1883,21 @@ class _EksporDataPageState extends State<EksporDataPage> {
                 pw.Column(
                   crossAxisAlignment: pw.CrossAxisAlignment.center,
                   children: [
-                    pw.Text("Sampang, $tanggalCetak", style: const pw.TextStyle(fontSize: 10)),
+                    pw.Text(
+                      () {
+                        final k = student.kelasDisplay.toUpperCase();
+                        if (k.contains("MI")) {
+                          return "Madrasah Ibtidaiyah Miftahul Ulum An-Nashar, $tanggalCetak";
+                        } else if (k.contains("MTS")) {
+                          return "Madrasah Tsanawiyah Miftahul Ulum An-Nashar, $tanggalCetak";
+                        } else if (k.contains("MA")) {
+                          return "Madrasah Aliyah Miftahul Ulum An-Nashar, $tanggalCetak";
+                        } else {
+                          return "Miftahul Ulum An-Nashar, $tanggalCetak";
+                        }
+                      }(),
+                      style: const pw.TextStyle(fontSize: 10),
+                    ),
                     pw.SizedBox(height: 4),
                     pw.Text("Kepala Madrasah,", style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 10)),
                     pw.SizedBox(height: 50),

@@ -35,7 +35,7 @@ android {
         applicationId = "com.Fendy_crew.integration_test_example"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
-        minSdk = flutter.minSdkVersion
+        minSdk = flutter.minSdkVersion // Android 5.0+ (kompatibel dengan ~99% perangkat Android aktif)
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName

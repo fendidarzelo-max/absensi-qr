@@ -19,6 +19,7 @@ class _ResetPasswordPageState extends State<ResetPasswordPage> {
   final _confirmPassController = TextEditingController();
   final _formKey = GlobalKey<FormState>();
 
+  String _selectedRole = 'Admin'; // 'Admin' atau 'Guru'
   bool _isLoading = false;
   bool _obscureNewPass = true;
   bool _obscureConfirmPass = true;
@@ -35,7 +36,9 @@ class _ResetPasswordPageState extends State<ResetPasswordPage> {
 
   String? _validateUsername(String? value) {
     if (value == null || value.isEmpty) {
-      return 'Username atau NIP tidak boleh kosong';
+      return _selectedRole == 'Admin' 
+          ? 'Username tidak boleh kosong' 
+          : 'NIP tidak boleh kosong';
     }
     if (value.trim().length < 3) {
       return 'Masukkan minimal 3 karakter';
@@ -80,6 +83,7 @@ class _ResetPasswordPageState extends State<ResetPasswordPage> {
 
       final username = _usernameController.text.trim();
       final email = _emailController.text.trim();
+      final role = _selectedRole.toLowerCase();
       final newPassword = _newPassController.text;
 
       try {
@@ -89,29 +93,34 @@ class _ResetPasswordPageState extends State<ResetPasswordPage> {
         if (systemService.isFirebaseAvailable) {
           final firestore = FirebaseFirestore.instance;
 
-          // Attempt to find in Admin first
-          final adminSnapshot = await firestore.collection('admin').get();
-          QueryDocumentSnapshot? targetDoc;
-          String matchedRole = 'admin';
+          if (role == 'admin' || role.contains('admin')) {
+            final snapshot = await firestore.collection('admin').get();
+            QueryDocumentSnapshot? targetDoc;
 
-          for (var doc in adminSnapshot.docs) {
-            final data = doc.data();
-            final docEmail = (data['email'] as String? ?? '').toLowerCase();
-            final docUsername = (data['username'] as String? ?? '').toLowerCase();
-            final docNama = (data['nama_lengkap'] as String? ?? '').toLowerCase();
+            for (var doc in snapshot.docs) {
+              final data = doc.data();
+              final docEmail = (data['email'] as String? ?? '').toLowerCase();
+              final docUsername = (data['username'] as String? ?? '').toLowerCase();
+              final docNama = (data['nama_lengkap'] as String? ?? '').toLowerCase();
 
-            if (docEmail == email.toLowerCase() &&
-                (docUsername == username.toLowerCase() || docNama == username.toLowerCase())) {
-              targetDoc = doc;
-              matchedRole = 'admin';
-              break;
+              if (docEmail == email.toLowerCase() &&
+                  (docUsername == username.toLowerCase() || docNama == username.toLowerCase())) {
+                targetDoc = doc;
+                break;
+              }
             }
-          }
 
-          // If not found in Admin, search in Guru
-          if (targetDoc == null) {
-            final guruSnapshot = await firestore.collection('guru').get();
-            for (var doc in guruSnapshot.docs) {
+            if (targetDoc != null) {
+              await targetDoc.reference.update({'password': newPassword});
+            } else {
+              throw Exception("Akun Administrator tidak ditemukan atau email tidak sesuai.");
+            }
+          } else {
+            // Role: Guru
+            final snapshot = await firestore.collection('guru').get();
+            QueryDocumentSnapshot? targetDoc;
+
+            for (var doc in snapshot.docs) {
               final data = doc.data();
               final docEmail = (data['email'] as String? ?? '').toLowerCase();
               final docNip = (data['nip'] as String? ?? '').toLowerCase();
@@ -120,16 +129,15 @@ class _ResetPasswordPageState extends State<ResetPasswordPage> {
               if (docEmail == email.toLowerCase() &&
                   (docNip == username.toLowerCase() || docNama == username.toLowerCase())) {
                 targetDoc = doc;
-                matchedRole = 'guru';
                 break;
               }
             }
-          }
 
-          if (targetDoc != null) {
-            await targetDoc.reference.update({'password': newPassword});
-          } else {
-            throw Exception("Akun tidak ditemukan atau email tidak sesuai.");
+            if (targetDoc != null) {
+              await targetDoc.reference.update({'password': newPassword});
+            } else {
+              throw Exception("Akun Guru tidak ditemukan atau email tidak sesuai.");
+            }
           }
 
           // Sync to local database / PHP backend in background if they have it
@@ -140,7 +148,7 @@ class _ResetPasswordPageState extends State<ResetPasswordPage> {
               body: jsonEncode({
                 'username': username,
                 'email': email,
-                'role': matchedRole,
+                'role': role,
                 'new_password': newPassword,
               }),
             ).timeout(const Duration(seconds: 3));
@@ -175,6 +183,7 @@ class _ResetPasswordPageState extends State<ResetPasswordPage> {
               body: jsonEncode({
                 'username': username,
                 'email': email,
+                'role': role,
                 'new_password': newPassword,
               }),
             )
@@ -355,6 +364,92 @@ class _ResetPasswordPageState extends State<ResetPasswordPage> {
                         ),
                         const SizedBox(height: 24),
 
+                        // Role Selector Tab (Premium Segmented Control)
+                        Container(
+                          padding: const EdgeInsets.all(4),
+                          decoration: BoxDecoration(
+                            color: Colors.grey.shade200,
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Row(
+                            children: [
+                              Expanded(
+                                child: InkWell(
+                                  onTap: () {
+                                    setState(() {
+                                      _selectedRole = 'Admin';
+                                    });
+                                  },
+                                  borderRadius: BorderRadius.circular(10),
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(vertical: 10),
+                                    decoration: BoxDecoration(
+                                      color: _selectedRole == 'Admin' ? Colors.white : Colors.transparent,
+                                      borderRadius: BorderRadius.circular(10),
+                                      boxShadow: _selectedRole == 'Admin'
+                                          ? [
+                                              BoxShadow(
+                                                color: Colors.black.withValues(alpha: 0.05),
+                                                blurRadius: 4,
+                                                offset: const Offset(0, 2),
+                                              ),
+                                            ]
+                                          : null,
+                                    ),
+                                    child: Center(
+                                      child: Text(
+                                        "Administrator",
+                                        style: TextStyle(
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 13,
+                                          color: _selectedRole == 'Admin' ? const Color(0xFF2196F3) : Colors.grey.shade600,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              Expanded(
+                                child: InkWell(
+                                  onTap: () {
+                                    setState(() {
+                                      _selectedRole = 'Guru';
+                                    });
+                                  },
+                                  borderRadius: BorderRadius.circular(10),
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(vertical: 10),
+                                    decoration: BoxDecoration(
+                                      color: _selectedRole == 'Guru' ? Colors.white : Colors.transparent,
+                                      borderRadius: BorderRadius.circular(10),
+                                      boxShadow: _selectedRole == 'Guru'
+                                          ? [
+                                              BoxShadow(
+                                                color: Colors.black.withValues(alpha: 0.05),
+                                                blurRadius: 4,
+                                                offset: const Offset(0, 2),
+                                              ),
+                                            ]
+                                          : null,
+                                    ),
+                                    child: Center(
+                                      child: Text(
+                                        "Guru",
+                                        style: TextStyle(
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 13,
+                                          color: _selectedRole == 'Guru' ? const Color(0xFF2196F3) : Colors.grey.shade600,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 20),
+
                         Form(
                           key: _formKey,
                           child: Column(
@@ -367,10 +462,10 @@ class _ResetPasswordPageState extends State<ResetPasswordPage> {
                                 keyboardType: TextInputType.text,
                                 style: const TextStyle(fontSize: 15, color: Color(0xFF1F2937)),
                                 decoration: InputDecoration(
-                                  hintText: "Username / NIP",
+                                  hintText: _selectedRole == 'Admin' ? "Username Admin" : "NIP Guru",
                                   hintStyle: TextStyle(color: Colors.grey.shade400, fontSize: 15),
                                   prefixIcon: Icon(
-                                    Icons.person_outline_rounded,
+                                    _selectedRole == 'Admin' ? Icons.person_outline_rounded : Icons.badge_outlined,
                                     color: Colors.grey.shade500,
                                   ),
                                   contentPadding: const EdgeInsets.symmetric(vertical: 16, horizontal: 16),

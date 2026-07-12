@@ -32,6 +32,8 @@ class _DataGuruPageState extends State<DataGuruPage> {
     final nipController = TextEditingController(text: guru?.nip ?? "");
     final namaController = TextEditingController(text: guru?.nama ?? "");
     final jabatanController = TextEditingController(text: guru?.jabatan ?? "Guru Mata Pelajaran");
+    final mapelController = TextEditingController(text: guru?.mapel ?? "");
+    final kelasController = TextEditingController(text: guru?.kelas ?? "");
     final tanggalLahirController = TextEditingController(text: guru?.tanggalLahir ?? "");
     final pendidikanController = TextEditingController(text: guru?.pendidikanTerakhir ?? "");
     String selectedGender = (guru?.jenisKelamin != null && (guru!.jenisKelamin == "Laki-laki" || guru.jenisKelamin == "Perempuan")) ? guru.jenisKelamin : "Laki-laki";
@@ -213,6 +215,28 @@ class _DataGuruPageState extends State<DataGuruPage> {
                   const SizedBox(height: 16),
 
                   TextFormField(
+                    controller: mapelController,
+                    textCapitalization: TextCapitalization.words,
+                    decoration: InputDecoration(
+                      labelText: "Mata Pelajaran (Mapel)",
+                      prefixIcon: const Icon(Icons.book),
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+
+                  TextFormField(
+                    controller: kelasController,
+                    textCapitalization: TextCapitalization.characters,
+                    decoration: InputDecoration(
+                      labelText: "Wali Kelas / Kelas",
+                      prefixIcon: const Icon(Icons.class_),
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+
+                  TextFormField(
                     controller: jabatanController,
                     textCapitalization: TextCapitalization.words,
                     decoration: InputDecoration(
@@ -275,8 +299,8 @@ class _DataGuruPageState extends State<DataGuruPage> {
                           final newGuru = Guru(
                             nip: nipController.text,
                             nama: namaController.text,
-                            mapel: guru?.mapel ?? "",
-                            kelas: guru?.kelas ?? "",
+                            mapel: mapelController.text,
+                            kelas: kelasController.text,
                             status: guru?.status ?? "Tidak Hadir",
                             jabatan: jabatanController.text,
                             hakAkses: guru?.hakAkses ?? "Guru",
@@ -441,7 +465,7 @@ class _DataGuruPageState extends State<DataGuruPage> {
                                   ),
                                   const SizedBox(height: 2),
                                   Text(
-                                    "Jabatan: ${guru.jabatan}",
+                                    "Jabatan: ${guru.jabatan} • Mapel: ${guru.mapel.isNotEmpty ? guru.mapel : '-'} • Kelas: ${guru.kelas.isNotEmpty ? guru.kelas : '-'}",
                                     style: TextStyle(color: Colors.grey[700], fontSize: 13),
                                   ),
                                 ],

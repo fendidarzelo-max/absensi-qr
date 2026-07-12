@@ -108,6 +108,141 @@ class _DataSiswaPageState extends State<DataSiswaPage> {
     );
   }
 
+  void _showPromotionDialog(BuildContext context) {
+    String? selectedKelasAsal;
+    final TextEditingController kelasBaruController = TextEditingController();
+    final classes = _studentService.getAllSiswa().map((s) => s.kelas).toSet().toList();
+    classes.sort();
+
+    showDialog(
+      context: context,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            return AlertDialog(
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              title: const Row(
+                children: [
+                  Icon(Icons.trending_up, color: Color(0xFF10B981)),
+                  SizedBox(width: 8),
+                  Text("Kenaikan Kelas Massal"),
+                ],
+              ),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      "Fitur ini memindahkan semua siswa dari satu kelas ke kelas baru secara sekaligus.",
+                      style: TextStyle(color: Colors.grey, fontSize: 12),
+                    ),
+                    const SizedBox(height: 16),
+                    const Text("Pilih Kelas Asal", style: TextStyle(fontWeight: FontWeight.bold)),
+                    const SizedBox(height: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12),
+                      decoration: BoxDecoration(
+                        border: Border.all(color: Colors.grey.shade300),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: DropdownButtonHideUnderline(
+                        child: DropdownButton<String>(
+                          value: selectedKelasAsal,
+                          hint: const Text("Pilih kelas..."),
+                          isExpanded: true,
+                          items: classes.map((String val) {
+                            return DropdownMenuItem<String>(
+                              value: val,
+                              child: Text(val),
+                            );
+                          }).toList(),
+                          onChanged: (val) {
+                            setModalState(() {
+                              selectedKelasAsal = val;
+                            });
+                          },
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    const Text("Nama Kelas Baru", style: TextStyle(fontWeight: FontWeight.bold)),
+                    const SizedBox(height: 8),
+                    TextField(
+                      controller: kelasBaruController,
+                      decoration: InputDecoration(
+                        hintText: "Contoh: 8A, 9B, atau LULUS",
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text("BATAL", style: TextStyle(color: Colors.grey)),
+                ),
+                ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF10B981),
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  ),
+                  onPressed: () async {
+                    if (selectedKelasAsal == null || kelasBaruController.text.trim().isEmpty) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text("Harap isi kelas asal dan kelas baru"), backgroundColor: Colors.red),
+                      );
+                      return;
+                    }
+                    
+                    final targetClass = kelasBaruController.text.trim();
+                    Navigator.pop(context);
+                    
+                    // Show progress dialog
+                    showDialog(
+                      context: context,
+                      barrierDismissible: false,
+                      builder: (context) => const Center(
+                        child: Card(
+                          child: Padding(
+                            padding: EdgeInsets.all(20.0),
+                            child: CircularProgressIndicator(),
+                          ),
+                        ),
+                      ),
+                    );
+
+                    try {
+                      await _studentService.promoteSiswaClass(selectedKelasAsal!, targetClass);
+                      if (context.mounted) {
+                        Navigator.pop(context); // Close progress dialog
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text("Berhasil memindahkan siswa"), backgroundColor: Colors.green),
+                        );
+                        setState(() {});
+                      }
+                    } catch (e) {
+                      if (context.mounted) {
+                        Navigator.pop(context); // Close progress dialog
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text("Gagal memproses: $e"), backgroundColor: Colors.red),
+                        );
+                      }
+                    }
+                  },
+                  child: const Text("PROSES"),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return DefaultTabController(
@@ -119,6 +254,14 @@ class _DataSiswaPageState extends State<DataSiswaPage> {
           foregroundColor: Colors.white,
           title: const Text("Data Siswa"),
           elevation: 0,
+          actions: [
+            IconButton(
+              icon: const Icon(Icons.trending_up, color: Colors.white),
+              tooltip: "Kenaikan Kelas Massal",
+              onPressed: () => _showPromotionDialog(context),
+            ),
+            const SizedBox(width: 8),
+          ],
           bottom: const TabBar(
             indicatorColor: Colors.white,
             labelColor: Colors.white,

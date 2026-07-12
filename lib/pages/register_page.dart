@@ -16,10 +16,12 @@ class _RegisterPageState extends State<RegisterPage> with SingleTickerProviderSt
   final _formKey = GlobalKey<FormState>();
   final _nameController = TextEditingController();
   final _usernameController = TextEditingController();
+  final _nipController = TextEditingController();
   final _emailController = TextEditingController();
   final _passController = TextEditingController();
   final _confirmPassController = TextEditingController();
 
+  String _selectedRole = "Admin";
   bool _isLoading = false;
   bool _obscurePassword = true;
   bool _obscureConfirmPassword = true;
@@ -39,6 +41,7 @@ class _RegisterPageState extends State<RegisterPage> with SingleTickerProviderSt
   void dispose() {
     _nameController.dispose();
     _usernameController.dispose();
+    _nipController.dispose();
     _emailController.dispose();
     _passController.dispose();
     _confirmPassController.dispose();
@@ -59,6 +62,16 @@ class _RegisterPageState extends State<RegisterPage> with SingleTickerProviderSt
     }
     if (value.length < 3) {
       return 'Username minimal 3 karakter';
+    }
+    return null;
+  }
+
+  String? _validateNip(String? value) {
+    if (value == null || value.isEmpty) {
+      return 'NIP tidak boleh kosong';
+    }
+    if (value.length < 3) {
+      return 'NIP minimal 3 karakter';
     }
     return null;
   }
@@ -97,40 +110,24 @@ class _RegisterPageState extends State<RegisterPage> with SingleTickerProviderSt
       setState(() => _isLoading = true);
       final systemService = SystemService();
 
+      // ✅ Jika Firebase tersedia, HANYA gunakan Firebase (tidak jatuh ke PHP)
       if (systemService.isFirebaseAvailable) {
         try {
           final firestore = FirebaseFirestore.instance;
           final name = _nameController.text.trim();
-          final username = _usernameController.text.trim();
-          final email = _emailController.text.trim();
           final password = _passController.text;
 
-          // Check if username already exists
-          final userDoc = await firestore.collection('admin').doc(username).get();
-          if (userDoc.exists) {
-            if (mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text("Username sudah terdaftar di Firebase"),
-                  backgroundColor: Colors.redAccent,
-                ),
-              );
-            }
-            setState(() => _isLoading = false);
-            return;
-          }
+          if (_selectedRole == "Admin") {
+            final username = _usernameController.text.trim();
+            final email = _emailController.text.trim();
 
-          // Check if email already exists
-          if (email.isNotEmpty) {
-            final emailQuery = await firestore
-                .collection('admin')
-                .where('email', isEqualTo: email)
-                .get();
-            if (emailQuery.docs.isNotEmpty) {
+            // Check if username already exists
+            final userDoc = await firestore.collection('admin').doc(username).get();
+            if (userDoc.exists) {
               if (mounted) {
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(
-                    content: Text("Email sudah terdaftar di Firebase"),
+                    content: Text("Username sudah terdaftar"),
                     backgroundColor: Colors.redAccent,
                   ),
                 );
@@ -138,27 +135,80 @@ class _RegisterPageState extends State<RegisterPage> with SingleTickerProviderSt
               setState(() => _isLoading = false);
               return;
             }
-          }
 
-          // Save account directly to Firebase Firestore
-          await firestore.collection('admin').doc(username).set({
-            'username': username,
-            'email': email.isEmpty ? "$username@sekolah.sch.id" : email,
-            'nama_lengkap': name,
-            'role': 'Administrator Utama',
-            'password': password,
-            'foto': '',
-          });
+            // Check if email already exists
+            if (email.isNotEmpty) {
+              final emailQuery = await firestore
+                  .collection('admin')
+                  .where('email', isEqualTo: email)
+                  .get();
+              if (emailQuery.docs.isNotEmpty) {
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text("Email sudah terdaftar"),
+                      backgroundColor: Colors.redAccent,
+                    ),
+                  );
+                }
+                setState(() => _isLoading = false);
+                return;
+              }
+            }
+
+            // Save account directly to Firebase Firestore
+            await firestore.collection('admin').doc(username).set({
+              'username': username,
+              'email': email.isEmpty ? "$username@sekolah.sch.id" : email,
+              'nama_lengkap': name,
+              'role': 'Administrator Utama',
+              'password': password,
+              'foto': '',
+            });
+          } else {
+            // Register/Activate Guru
+            final nip = _nipController.text.trim();
+            final guruDoc = await firestore.collection('guru').doc(nip).get();
+            
+            if (guruDoc.exists) {
+              // Update existing teacher record (activate/claim account)
+              await firestore.collection('guru').doc(nip).update({
+                'nama': name,
+                'password': password,
+              });
+            } else {
+              // Create brand new teacher record
+              await firestore.collection('guru').doc(nip).set({
+                'nip': nip,
+                'nama': name,
+                'password': password,
+                'mapel': '',
+                'kelas': '',
+                'status': 'Tidak Hadir',
+                'jabatan': 'Guru Mata Pelajaran',
+                'hakAkses': 'Guru',
+                'agama': '',
+                'jenisKelamin': '',
+                'tanggalLahir': '',
+                'pendidikanTerakhir': '',
+                'jadwalMengajar': '{}',
+                'qr_code': nip,
+                'email': "$nip@sekolah.sch.id",
+              });
+            }
+          }
 
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
+              SnackBar(
                 content: Row(
                   children: [
-                    Icon(Icons.check_circle, color: Colors.white),
-                    SizedBox(width: 8),
+                    const Icon(Icons.check_circle, color: Colors.white),
+                    const SizedBox(width: 8),
                     Expanded(
-                      child: Text("Pendaftaran akun berhasil via Firebase! Silakan login."),
+                      child: Text(_selectedRole == "Admin"
+                          ? "Pendaftaran akun admin berhasil! Silakan login."
+                          : "Pendaftaran akun guru berhasil! Silakan login."),
                     ),
                   ],
                 ),
@@ -167,62 +217,134 @@ class _RegisterPageState extends State<RegisterPage> with SingleTickerProviderSt
             );
             Navigator.pop(context);
           }
-          return;
         } catch (e) {
           debugPrint("Firebase registration error: $e");
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Row(
+                  children: [
+                    const Icon(Icons.error_outline, color: Colors.white),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text("Gagal mendaftar: ${e.toString().split(']').last.trim()}"),
+                    ),
+                  ],
+                ),
+                backgroundColor: Colors.redAccent,
+              ),
+            );
+          }
+        } finally {
+          if (mounted) setState(() => _isLoading = false);
         }
+        return; // Jangan lanjut ke PHP jika Firebase tersedia
       }
 
+      // Fallback PHP backend (hanya jika Firebase tidak tersedia)
       try {
-        final Map<String, dynamic> requestBody = {
-          'name': _nameController.text.trim(),
-          'username': _usernameController.text.trim(),
-          'email': _emailController.text.trim(),
-          'password': _passController.text,
-        };
+        if (_selectedRole == "Admin") {
+          final Map<String, dynamic> requestBody = {
+            'name': _nameController.text.trim(),
+            'username': _usernameController.text.trim(),
+            'email': _emailController.text.trim(),
+            'password': _passController.text,
+          };
 
-        final response = await http
-            .post(
-              Uri.parse('${systemService.baseUrl}/register.php'),
-              headers: {'Content-Type': 'application/json'},
-              body: jsonEncode(requestBody),
-            )
-            .timeout(const Duration(seconds: 5));
+          final response = await http
+              .post(
+                Uri.parse('${systemService.baseUrl}/register.php'),
+                headers: {'Content-Type': 'application/json'},
+                body: jsonEncode(requestBody),
+              )
+              .timeout(const Duration(seconds: 5));
 
-        if (response.statusCode == 200) {
-          final resData = jsonDecode(response.body);
-          if (resData['status'] == 'success') {
-            if (mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Row(
-                    children: [
-                      const Icon(Icons.check_circle, color: Colors.white),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          resData['message'] ?? "Pendaftaran berhasil! Silakan login.",
+          if (response.statusCode == 200) {
+            final resData = jsonDecode(response.body);
+            if (resData['status'] == 'success') {
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Row(
+                      children: [
+                        const Icon(Icons.check_circle, color: Colors.white),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            resData['message'] ?? "Pendaftaran berhasil! Silakan login.",
+                          ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
+                    backgroundColor: Colors.green,
                   ),
-                  backgroundColor: Colors.green,
-                ),
-              );
-              Navigator.pop(context); // Kembali ke halaman login
+                );
+                Navigator.pop(context);
+              }
+            } else {
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(resData['message'] ?? "Pendaftaran gagal"),
+                    backgroundColor: Colors.redAccent,
+                  ),
+                );
+              }
             }
           } else {
-            if (mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text(resData['message'] ?? "Pendaftaran gagal"),
-                  backgroundColor: Colors.redAccent,
-                ),
-              );
-            }
+            throw Exception("Server error: ${response.statusCode}");
           }
         } else {
-          throw Exception("Server error: ${response.statusCode}");
+          // Register Guru via PHP
+          final Map<String, dynamic> requestBody = {
+            'name': _nameController.text.trim(),
+            'nip': _nipController.text.trim(),
+            'password': _passController.text,
+          };
+
+          final response = await http
+              .post(
+                Uri.parse('${systemService.baseUrl}/register_guru.php'),
+                headers: {'Content-Type': 'application/json'},
+                body: jsonEncode(requestBody),
+              )
+              .timeout(const Duration(seconds: 5));
+
+          if (response.statusCode == 200) {
+            final resData = jsonDecode(response.body);
+            if (resData['status'] == 'success') {
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Row(
+                      children: [
+                        const Icon(Icons.check_circle, color: Colors.white),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            resData['message'] ?? "Pendaftaran Guru berhasil! Silakan login.",
+                          ),
+                        ),
+                      ],
+                    ),
+                    backgroundColor: Colors.green,
+                  ),
+                );
+                Navigator.pop(context);
+              }
+            } else {
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(resData['message'] ?? "Pendaftaran gagal"),
+                    backgroundColor: Colors.redAccent,
+                  ),
+                );
+              }
+            }
+          } else {
+            throw Exception("Server error: ${response.statusCode}");
+          }
         }
       } catch (e) {
         debugPrint("Error pendaftaran: $e");
@@ -363,7 +485,76 @@ class _RegisterPageState extends State<RegisterPage> with SingleTickerProviderSt
                             letterSpacing: -0.5,
                           ),
                         ),
-                        const SizedBox(height: 32),
+                        const SizedBox(height: 24),
+
+                        // Pilihan Peran: Admin atau Guru
+                        Container(
+                          margin: const EdgeInsets.only(bottom: 24),
+                          decoration: BoxDecoration(
+                            color: Colors.grey.shade100,
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Row(
+                            children: [
+                              Expanded(
+                                child: GestureDetector(
+                                  onTap: () {
+                                    setState(() {
+                                      _selectedRole = "Admin";
+                                    });
+                                  },
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(vertical: 12),
+                                    decoration: BoxDecoration(
+                                      color: _selectedRole == "Admin"
+                                          ? const Color(0xFF2196F3)
+                                          : Colors.transparent,
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                    alignment: Alignment.center,
+                                    child: Text(
+                                      "Admin",
+                                      style: TextStyle(
+                                        color: _selectedRole == "Admin"
+                                            ? Colors.white
+                                            : Colors.grey.shade600,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              Expanded(
+                                child: GestureDetector(
+                                  onTap: () {
+                                    setState(() {
+                                      _selectedRole = "Guru";
+                                    });
+                                  },
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(vertical: 12),
+                                    decoration: BoxDecoration(
+                                      color: _selectedRole == "Guru"
+                                          ? const Color(0xFF2196F3)
+                                          : Colors.transparent,
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                    alignment: Alignment.center,
+                                    child: Text(
+                                      "Guru",
+                                      style: TextStyle(
+                                        color: _selectedRole == "Guru"
+                                            ? Colors.white
+                                            : Colors.grey.shade600,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
 
                         Form(
                           key: _formKey,
@@ -380,28 +571,42 @@ class _RegisterPageState extends State<RegisterPage> with SingleTickerProviderSt
                               ),
                               const SizedBox(height: 16),
 
-                              // Username
-                              TextFormField(
-                                controller: _usernameController,
-                                validator: _validateUsername,
-                                decoration: _buildInputDecoration(
-                                  hint: "Username",
-                                  icon: Icons.badge_outlined,
+                              if (_selectedRole == "Admin") ...[
+                                // Username
+                                TextFormField(
+                                  controller: _usernameController,
+                                  validator: _validateUsername,
+                                  decoration: _buildInputDecoration(
+                                    hint: "Username",
+                                    icon: Icons.badge_outlined,
+                                  ),
                                 ),
-                              ),
-                              const SizedBox(height: 16),
+                                const SizedBox(height: 16),
 
-                              // Email (Opsional)
-                              TextFormField(
-                                controller: _emailController,
-                                validator: _validateEmail,
-                                keyboardType: TextInputType.emailAddress,
-                                decoration: _buildInputDecoration(
-                                  hint: "Email (Opsional)",
-                                  icon: Icons.alternate_email_rounded,
+                                // Email (Opsional)
+                                TextFormField(
+                                  controller: _emailController,
+                                  validator: _validateEmail,
+                                  keyboardType: TextInputType.emailAddress,
+                                  decoration: _buildInputDecoration(
+                                    hint: "Email (Opsional)",
+                                    icon: Icons.alternate_email_rounded,
+                                  ),
                                 ),
-                              ),
-                              const SizedBox(height: 16),
+                                const SizedBox(height: 16),
+                              ] else ...[
+                                // NIP
+                                TextFormField(
+                                  controller: _nipController,
+                                  validator: _validateNip,
+                                  keyboardType: TextInputType.number,
+                                  decoration: _buildInputDecoration(
+                                    hint: "NIP (Nomor Induk Pegawai)",
+                                    icon: Icons.badge_outlined,
+                                  ),
+                                ),
+                                const SizedBox(height: 16),
+                              ],
 
                               // Password
                               TextFormField(

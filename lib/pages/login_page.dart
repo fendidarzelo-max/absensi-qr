@@ -257,10 +257,15 @@ class _LoginPageState extends State<LoginPage> with SingleTickerProviderStateMix
           if (guruQuery.docs.isNotEmpty) {
             final guruDoc = guruQuery.docs.first;
             final Map<String, dynamic> userData = guruDoc.data();
-            if (userData['password'] == password) {
+            final String? savedPassword = userData['password'] as String?;
+            // Jika password belum diset, gunakan NIP sebagai password default
+            final String effectivePassword = (savedPassword == null || savedPassword.isEmpty)
+                ? username  // NIP = password default
+                : savedPassword;
+            if (effectivePassword == password) {
               await systemService.updateAdminProfile(
                 name: userData['nama_guru'] ?? userData['nama'] ?? 'Guru',
-                role: userData['hak_akses'] ?? 'Guru',
+                role: userData['hakAkses'] ?? userData['hak_akses'] ?? 'Guru',
                 username: userData['nip'] ?? username,
                 id: 2,
                 email: userData['email'] ?? '$username@sekolah.sch.id',
@@ -287,6 +292,16 @@ class _LoginPageState extends State<LoginPage> with SingleTickerProviderStateMix
           return;
         } catch (e) {
           debugPrint("Firebase login error: $e");
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text("Error Firebase: ${e.toString().split(']').last.trim()}"),
+                backgroundColor: Colors.redAccent,
+              ),
+            );
+            setState(() => _isLoading = false);
+          }
+          return; // Jangan jatuh ke PHP jika Firebase tersedia
         }
       }
 
@@ -814,22 +829,13 @@ class _LoginPageState extends State<LoginPage> with SingleTickerProviderStateMix
                         const SizedBox(height: 24),
 
                         // Disclaimer bawah
-                        RichText(
+                        Text(
+                          "Dengan login, Anda menyetujui syarat dan ketentuan\naplikasi MADRASAH MIFTAHUL ULUM AN-NASHAR",
                           textAlign: TextAlign.center,
-                          text: TextSpan(
-                            style: TextStyle(
-                              color: Colors.grey.shade500,
-                              fontSize: 12,
-                              height: 1.4,
-                              fontFamily: 'Sans-Serif',
-                            ),
-                            children: const [
-                              TextSpan(text: "Dengan login, Anda menyetujui syarat dan ketentuan aplikasi "),
-                              TextSpan(
-                                text: "MADRASAH MIFTAHUL ULUM AN-NASHAR",
-                                style: TextStyle(fontStyle: FontStyle.italic),
-                              ),
-                            ],
+                          style: TextStyle(
+                            color: Colors.grey.shade500,
+                            fontSize: 12,
+                            height: 1.4,
                           ),
                         ),
                       ],

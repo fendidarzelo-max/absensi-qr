@@ -10,6 +10,7 @@ import '../models/siswa.dart';
 import '../models/guru.dart';
 
 class AttendanceLog {
+  final String? id;
   final String waktu;
   final String tanggal;
   final DateTime timestamp;
@@ -20,6 +21,7 @@ class AttendanceLog {
   final int? jamKe;
 
   const AttendanceLog({
+    this.id,
     required this.waktu,
     required this.tanggal,
     required this.timestamp,
@@ -32,6 +34,7 @@ class AttendanceLog {
 
   Map<String, dynamic> toJson() {
     return {
+      'id': id,
       'waktu': waktu,
       'tanggal': tanggal,
       'timestamp': timestamp.toIso8601String(),
@@ -43,8 +46,9 @@ class AttendanceLog {
     };
   }
 
-  factory AttendanceLog.fromJson(Map<String, dynamic> json) {
+  factory AttendanceLog.fromJson(Map<String, dynamic> json, {String? docId}) {
     return AttendanceLog(
+      id: docId ?? json['id'] as String?,
       waktu: json['waktu'] as String,
       tanggal: json['tanggal'] as String? ?? "",
       timestamp: DateTime.parse(json['timestamp'] as String),
@@ -86,6 +90,9 @@ class SystemService extends ChangeNotifier {
       return false;
     }
   }
+
+  final List<Map<String, dynamic>> _pendingSync = [];
+  List<Map<String, dynamic>> get pendingSync => List.unmodifiable(_pendingSync);
 
   SystemService._internal() {
     _initIpAndLoad();
@@ -131,6 +138,13 @@ class SystemService extends ChangeNotifier {
       _adminUsername = prefs.getString('admin_username') ?? _adminUsername;
       _adminEmail = prefs.getString('admin_email') ?? _adminEmail;
       _adminFoto = prefs.getString('admin_foto') ?? _adminFoto;
+
+      final pendingJson = prefs.getString('pending_sync');
+      if (pendingJson != null) {
+        final List<dynamic> decoded = jsonDecode(pendingJson);
+        _pendingSync.clear();
+        _pendingSync.addAll(decoded.map((item) => Map<String, dynamic>.from(item)));
+      }
     } catch (_) {}
     await refresh();
   }
@@ -226,7 +240,67 @@ class SystemService extends ChangeNotifier {
   List<AttendanceLog> get logs => List.unmodifiable(_logs);
   List<Holiday> get holidays => List.unmodifiable(_holidays);
 
+  bool _isSyncing = false;
+  Future<void> syncPendingLogs() async {
+    if (_isSyncing || _pendingSync.isEmpty) return;
+    _isSyncing = true;
+    final List<Map<String, dynamic>> remaining = [];
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      for (var pending in _pendingSync) {
+        bool success = false;
+        try {
+          if (isFirebaseAvailable) {
+            final firestore = FirebaseFirestore.instance;
+            final docId = firestore.collection('logs').doc().id;
+            final logObj = AttendanceLog(
+              waktu: pending['waktu'],
+              tanggal: pending['tanggal'],
+              timestamp: DateTime.parse(pending['timestamp']),
+              nama: pending['nama'],
+              tipe: pending['tipe'],
+              status: pending['status'],
+              kelas: pending['kelas'],
+              jamKe: pending['jam_ke'],
+            );
+            await firestore.collection('logs').doc(docId).set(logObj.toJson());
+            success = true;
+          } else {
+            final response = await http.post(
+              Uri.parse('$baseUrl/record_attendance.php'),
+              headers: {'Content-Type': 'application/json'},
+              body: jsonEncode({
+                'code': pending['code'],
+                'isGuru': pending['isGuru'],
+                'jam_ke': pending['jam_ke'],
+                if (pending['tingkat'] != null) 'tingkat': pending['tingkat'],
+                'tanggal': pending['tanggal_db'],
+                'waktu': pending['waktu_db'],
+              }),
+            ).timeout(const Duration(seconds: 3));
+            if (response.statusCode == 200) {
+              final resData = jsonDecode(response.body);
+              if (resData['status'] == 'success' || resData['status'] == 'info') {
+                success = true;
+              }
+            }
+          }
+        } catch (e) {
+          debugPrint("Gagal mensinkronisasikan log tunda: $e");
+        }
+        if (!success) {
+          remaining.add(pending);
+        }
+      }
+      _pendingSync.clear();
+      _pendingSync.addAll(remaining);
+      await prefs.setString('pending_sync', jsonEncode(_pendingSync));
+    } catch (_) {}
+    _isSyncing = false;
+  }
+
   Future<void> refresh() async {
+    await syncPendingLogs();
     if (isFirebaseAvailable) {
       try {
         final firestore = FirebaseFirestore.instance;
@@ -277,7 +351,7 @@ class SystemService extends ChangeNotifier {
         final logsSnap = await firestore.collection('logs').orderBy('timestamp', descending: true).limit(500).get();
         _logs.clear();
         for (var doc in logsSnap.docs) {
-          _logs.add(AttendanceLog.fromJson(doc.data()));
+          _logs.add(AttendanceLog.fromJson(doc.data(), docId: doc.id));
         }
 
         notifyListeners();
@@ -751,6 +825,48 @@ class SystemService extends ChangeNotifier {
     }
   }
 
+  Future<void> promoteSiswaClass(String kelasAsal, String kelasBaru) async {
+    for (int i = 0; i < _siswaList.length; i++) {
+      if (_siswaList[i].kelas == kelasAsal) {
+        _siswaList[i] = _siswaList[i].copyWith(kelas: kelasBaru);
+      }
+    }
+    notifyListeners();
+    _saveToPrefsFallback();
+
+    if (isFirebaseAvailable) {
+      try {
+        final querySnapshot = await FirebaseFirestore.instance
+            .collection('siswa')
+            .where('kelas', isEqualTo: kelasAsal)
+            .get();
+        final batch = FirebaseFirestore.instance.batch();
+        for (var doc in querySnapshot.docs) {
+          batch.update(doc.reference, {'kelas': kelasBaru});
+        }
+        await batch.commit();
+        await refresh();
+      } catch (e) {
+        debugPrint("Gagal promote siswa Firebase: $e");
+      }
+      return;
+    }
+
+    try {
+      await http.post(
+        Uri.parse('$baseUrl/promote_siswa.php'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'kelas_asal': kelasAsal,
+          'kelas_baru': kelasBaru,
+        }),
+      );
+      await refresh();
+    } catch (e) {
+      debugPrint("Gagal promote siswa: $e");
+    }
+  }
+
   // Guru CRUD
   Future<void> addGuru(Guru guru) async {
     _guruList.add(guru);
@@ -955,12 +1071,33 @@ class SystemService extends ChangeNotifier {
     // Optimistic local UI update
     if (isGuru) {
       final index = _guruList.indexWhere(
-        (g) =>
-            g.nip.trim() == cleanCode ||
-            g.nama.trim().toLowerCase() == cleanCode.toLowerCase(),
+        (g) => g.nip.trim() == cleanCode,
       );
       if (index != -1) {
         final guru = _guruList[index];
+        
+        // Find teaching levels for today
+        final days = {
+          DateTime.sunday: 'Ahad',
+          DateTime.monday: 'Senin',
+          DateTime.tuesday: 'Selasa',
+          DateTime.wednesday: 'Rabu',
+          DateTime.thursday: 'Kamis',
+          DateTime.friday: 'Jumat',
+          DateTime.saturday: 'Sabtu',
+        };
+        final hariIni = days[now.weekday] ?? 'Senin';
+        List<String> levels = [];
+        if (guru.jadwalMengajar != null && guru.jadwalMengajar!.isNotEmpty) {
+          try {
+            final decoded = jsonDecode(guru.jadwalMengajar!) as Map<String, dynamic>;
+            if (decoded.containsKey(hariIni) && decoded[hariIni] is List) {
+              levels = List<String>.from(decoded[hariIni]);
+            }
+          } catch (_) {}
+        }
+        final finalKelas = levels.isNotEmpty ? levels.join(', ') : (guru.kelas.isNotEmpty ? guru.kelas : null);
+
         _logs.insert(
           0,
           AttendanceLog(
@@ -970,7 +1107,7 @@ class SystemService extends ChangeNotifier {
             nama: guru.nama,
             tipe: "Guru",
             status: status,
-            kelas: tingkat,
+            kelas: tingkat ?? finalKelas,
             jamKe: jamKe,
           ),
         );
@@ -979,9 +1116,7 @@ class SystemService extends ChangeNotifier {
       }
     } else {
       final index = _siswaList.indexWhere(
-        (s) =>
-            s.nisn.trim() == cleanCode ||
-            s.nama.trim().toLowerCase() == cleanCode.toLowerCase(),
+        (s) => s.nisn.trim() == cleanCode,
       );
       if (index != -1) {
         final siswa = _siswaList[index];
@@ -1011,13 +1146,37 @@ class SystemService extends ChangeNotifier {
         String? kelasLog = isGuru ? tingkat : null;
 
         if (isGuru) {
-          final idx = _guruList.indexWhere((g) => g.nip.trim() == cleanCode || g.nama.trim().toLowerCase() == cleanCode.toLowerCase());
+          final idx = _guruList.indexWhere((g) => g.nip.trim() == cleanCode);
           if (idx != -1) {
-            namaLog = _guruList[idx].nama;
-            await firestore.collection('guru').doc(_guruList[idx].nip).update({'status': 'Hadir'});
+            final guru = _guruList[idx];
+            namaLog = guru.nama;
+            
+            // Find teaching levels for today
+            final days = {
+              DateTime.sunday: 'Ahad',
+              DateTime.monday: 'Senin',
+              DateTime.tuesday: 'Selasa',
+              DateTime.wednesday: 'Rabu',
+              DateTime.thursday: 'Kamis',
+              DateTime.friday: 'Jumat',
+              DateTime.saturday: 'Sabtu',
+            };
+            final hariIni = days[now.weekday] ?? 'Senin';
+            List<String> levels = [];
+            if (guru.jadwalMengajar != null && guru.jadwalMengajar!.isNotEmpty) {
+              try {
+                final decoded = jsonDecode(guru.jadwalMengajar!) as Map<String, dynamic>;
+                if (decoded.containsKey(hariIni) && decoded[hariIni] is List) {
+                  levels = List<String>.from(decoded[hariIni]);
+                }
+              } catch (_) {}
+            }
+            kelasLog = tingkat ?? (levels.isNotEmpty ? levels.join(', ') : (guru.kelas.isNotEmpty ? guru.kelas : null));
+
+            await firestore.collection('guru').doc(guru.nip).update({'status': 'Hadir'});
           }
         } else {
-          final idx = _siswaList.indexWhere((s) => s.nisn.trim() == cleanCode || s.nama.trim().toLowerCase() == cleanCode.toLowerCase());
+          final idx = _siswaList.indexWhere((s) => s.nisn.trim() == cleanCode);
           if (idx != -1) {
             namaLog = _siswaList[idx].nama;
             kelasLog = _siswaList[idx].kelas;
@@ -1040,8 +1199,60 @@ class SystemService extends ChangeNotifier {
         return true;
       } catch (e) {
         debugPrint("Gagal record attendance Firebase: $e");
+        String namaLog = cleanCode;
+        String? kelasLog = isGuru ? tingkat : null;
+        if (isGuru) {
+          final idx = _guruList.indexWhere((g) => g.nip.trim() == cleanCode);
+          if (idx != -1) {
+            namaLog = _guruList[idx].nama;
+            final days = {
+              DateTime.sunday: 'Ahad',
+              DateTime.monday: 'Senin',
+              DateTime.tuesday: 'Selasa',
+              DateTime.wednesday: 'Rabu',
+              DateTime.thursday: 'Kamis',
+              DateTime.friday: 'Jumat',
+              DateTime.saturday: 'Sabtu',
+            };
+            final hariIni = days[now.weekday] ?? 'Senin';
+            List<String> levels = [];
+            if (_guruList[idx].jadwalMengajar != null && _guruList[idx].jadwalMengajar!.isNotEmpty) {
+              try {
+                final decoded = jsonDecode(_guruList[idx].jadwalMengajar!) as Map<String, dynamic>;
+                if (decoded.containsKey(hariIni) && decoded[hariIni] is List) {
+                  levels = List<String>.from(decoded[hariIni]);
+                }
+              } catch (_) {}
+            }
+            kelasLog = tingkat ?? (levels.isNotEmpty ? levels.join(', ') : (_guruList[idx].kelas.isNotEmpty ? _guruList[idx].kelas : null));
+          }
+        } else {
+          final idx = _siswaList.indexWhere((s) => s.nisn.trim() == cleanCode);
+          if (idx != -1) {
+            namaLog = _siswaList[idx].nama;
+            kelasLog = _siswaList[idx].kelas;
+          }
+        }
+        
+        _pendingSync.add({
+          'isFirebase': true,
+          'waktu': timeStr,
+          'tanggal': dateStr,
+          'timestamp': now.toIso8601String(),
+          'nama': namaLog,
+          'tipe': isGuru ? "Guru" : "Siswa",
+          'status': status,
+          'kelas': kelasLog,
+          'jam_ke': jamKe,
+        });
+        
+        try {
+          final prefs = await SharedPreferences.getInstance();
+          await prefs.setString('pending_sync', jsonEncode(_pendingSync));
+          await _saveToPrefsFallback();
+        } catch (_) {}
+        return true;
       }
-      return false;
     }
 
     // Server Sync
@@ -1063,22 +1274,75 @@ class SystemService extends ChangeNotifier {
           return true;
         }
       }
+      // If server returned non-success response, fall back to offline queue
+      throw Exception("Server returned non-success status");
     } catch (e) {
-      debugPrint("Gagal record attendance: $e");
+      debugPrint("Gagal record attendance, menyimpan offline: $e");
+      
+      String namaLog = cleanCode;
+      String? kelasLog = isGuru ? tingkat : null;
+      if (isGuru) {
+        final idx = _guruList.indexWhere((g) => g.nip.trim() == cleanCode);
+        if (idx != -1) {
+          namaLog = _guruList[idx].nama;
+          final days = {
+            DateTime.sunday: 'Ahad',
+            DateTime.monday: 'Senin',
+            DateTime.tuesday: 'Selasa',
+            DateTime.wednesday: 'Rabu',
+            DateTime.thursday: 'Kamis',
+            DateTime.friday: 'Jumat',
+            DateTime.saturday: 'Sabtu',
+          };
+          final hariIni = days[now.weekday] ?? 'Senin';
+          List<String> levels = [];
+          if (_guruList[idx].jadwalMengajar != null && _guruList[idx].jadwalMengajar!.isNotEmpty) {
+            try {
+              final decoded = jsonDecode(_guruList[idx].jadwalMengajar!) as Map<String, dynamic>;
+              if (decoded.containsKey(hariIni) && decoded[hariIni] is List) {
+                levels = List<String>.from(decoded[hariIni]);
+              }
+            } catch (_) {}
+          }
+          kelasLog = tingkat ?? (levels.isNotEmpty ? levels.join(', ') : (_guruList[idx].kelas.isNotEmpty ? _guruList[idx].kelas : null));
+        }
+      } else {
+        final idx = _siswaList.indexWhere((s) => s.nisn.trim() == cleanCode);
+        if (idx != -1) {
+          namaLog = _siswaList[idx].nama;
+          kelasLog = _siswaList[idx].kelas;
+        }
+      }
+
+      _pendingSync.add({
+        'isFirebase': false,
+        'code': cleanCode,
+        'isGuru': isGuru,
+        'jam_ke': jamKe,
+        'tingkat': tingkat,
+        'tanggal_db': now.toIso8601String().split('T')[0],
+        'waktu_db': timeStr,
+        // For local cache:
+        'waktu': timeStr,
+        'tanggal': dateStr,
+        'timestamp': now.toIso8601String(),
+        'nama': namaLog,
+        'tipe': isGuru ? "Guru" : "Siswa",
+        'status': status,
+        'kelas': kelasLog,
+      });
+
+      try {
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setString('pending_sync', jsonEncode(_pendingSync));
+        await _saveToPrefsFallback();
+      } catch (_) {}
     }
 
     if (isGuru) {
-      return _guruList.any(
-        (g) =>
-            g.nip.trim() == cleanCode ||
-            g.nama.trim().toLowerCase() == cleanCode.toLowerCase(),
-      );
+      return _guruList.any((g) => g.nip.trim() == cleanCode);
     } else {
-      return _siswaList.any(
-        (s) =>
-            s.nisn.trim() == cleanCode ||
-            s.nama.trim().toLowerCase() == cleanCode.toLowerCase(),
-      );
+      return _siswaList.any((s) => s.nisn.trim() == cleanCode);
     }
   }
 
@@ -1115,6 +1379,76 @@ class SystemService extends ChangeNotifier {
       refresh();
     } catch (e) {
       debugPrint("Gagal membersihkan log: $e");
+    }
+  }
+
+  Future<bool> deleteAttendanceLog(AttendanceLog log) async {
+    if (isFirebaseAvailable) {
+      try {
+        final firestore = FirebaseFirestore.instance;
+        if (log.id != null && log.id!.isNotEmpty) {
+          await firestore.collection('logs').doc(log.id).delete();
+        } else {
+          final querySnap = await firestore
+              .collection('logs')
+              .where('nama', isEqualTo: log.nama)
+              .where('tanggal', isEqualTo: log.tanggal)
+              .where('waktu', isEqualTo: log.waktu)
+              .where('tipe', isEqualTo: log.tipe)
+              .get();
+              
+          for (var doc in querySnap.docs) {
+            await doc.reference.delete();
+          }
+        }
+        
+        if (log.tipe == "Guru") {
+          final otherScansToday = _logs.any(
+            (l) => l.nama == log.nama && l.tipe == "Guru" && l.tanggal == log.tanggal && l.waktu != log.waktu
+          );
+          if (!otherScansToday) {
+            final idx = _guruList.indexWhere((g) => g.nama.trim().toLowerCase() == log.nama.trim().toLowerCase());
+            if (idx != -1) {
+              await firestore.collection('guru').doc(_guruList[idx].nip).update({'status': 'Tidak Hadir'});
+            }
+          }
+        }
+        
+        await refresh();
+        return true;
+      } catch (e) {
+        debugPrint("Error deleting log from Firebase: $e");
+        return false;
+      }
+    } else {
+      try {
+        final res = await http.post(
+          Uri.parse('$baseUrl/delete_log.php'),
+          body: {
+            'nama': log.nama,
+            'tanggal': log.tanggal,
+            'waktu': log.waktu,
+            'tipe': log.tipe,
+          },
+        );
+        if (res.statusCode == 200) {
+          final data = jsonDecode(res.body);
+          if (data['status'] == 'success') {
+            await refresh();
+            return true;
+          }
+        }
+      } catch (e) {
+        debugPrint("Error deleting log from API: $e");
+      }
+      
+      _logs.removeWhere((l) =>
+          l.nama == log.nama &&
+          l.tanggal == log.tanggal &&
+          l.waktu == log.waktu &&
+          l.tipe == log.tipe);
+      notifyListeners();
+      return true;
     }
   }
 
@@ -1198,7 +1532,7 @@ class SystemService extends ChangeNotifier {
               .where('nama', isEqualTo: siswa.nama)
               .where('tipe', isEqualTo: 'Siswa')
               .where('tanggal', isEqualTo: _formatDate(now))
-              .where('jamKe', isEqualTo: jamKe)
+              .where('jam_ke', isEqualTo: jamKe)
               .get();
           final batch = firestore.batch();
           for (var doc in logsSnap.docs) {

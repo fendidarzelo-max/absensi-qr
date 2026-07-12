@@ -88,7 +88,7 @@ class _AbsensiUsbPageState extends State<AbsensiUsbPage> {
 
     // 1. Identify Guru
     final guru = _systemService.guruList.firstWhere(
-      (g) => g.nip.trim() == cleanCode || g.nama.trim().toLowerCase() == cleanCode.toLowerCase(),
+      (g) => g.nip.trim() == cleanCode,
       orElse: () => Guru(nip: "", nama: "", mapel: "", kelas: "", status: ""),
     );
 

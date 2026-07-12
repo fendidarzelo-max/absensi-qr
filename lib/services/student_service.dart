@@ -22,6 +22,10 @@ class StudentService {
     SystemService().updateSiswa(siswa);
   }
 
+  Future<void> promoteSiswaClass(String kelasAsal, String kelasBaru) async {
+    await SystemService().promoteSiswaClass(kelasAsal, kelasBaru);
+  }
+
   List<Siswa> searchSiswa(String query) {
     if (query.isEmpty) return getAllSiswa();
     final lowerQuery = query.toLowerCase();
