@@ -1,7 +1,12 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
+import 'package:file_picker/file_picker.dart';
+import 'dart:io' show File;
 import '../models/guru.dart';
 import '../services/system_service.dart';
+import '../utils/excel_helper.dart';
+import '../utils/file_saver.dart';
 
 class DataGuruPage extends StatefulWidget {
   const DataGuruPage({super.key});
@@ -398,6 +403,8 @@ class _DataGuruPageState extends State<DataGuruPage> {
         padding: const EdgeInsets.all(24.0),
         child: Column(
           children: [
+            _buildActionButtons(context),
+            const SizedBox(height: 16),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 16),
               decoration: BoxDecoration(
@@ -497,6 +504,300 @@ class _DataGuruPageState extends State<DataGuruPage> {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildActionButtons(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.grey.withValues(alpha: 0.1)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            "Fitur Data Guru (Excel)",
+            style: TextStyle(
+              fontWeight: FontWeight.bold,
+              fontSize: 14,
+              color: Color(0xFF102C57),
+            ),
+          ),
+          const SizedBox(height: 12),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              _actionButton(
+                label: "Upload Excel",
+                icon: Icons.upload_file_rounded,
+                bgColor: const Color(0xFFE8F5E9),
+                textColor: const Color(0xFF2E7D32),
+                onPressed: _uploadExcel,
+              ),
+              _actionButton(
+                label: "Ekspor Excel",
+                icon: Icons.article_rounded,
+                bgColor: const Color(0xFFE8EAF6),
+                textColor: const Color(0xFF283593),
+                onPressed: _exportExcel,
+              ),
+              _actionButton(
+                label: "Hapus Semua",
+                icon: Icons.delete_sweep_rounded,
+                bgColor: const Color(0xFFFFEBEE),
+                textColor: const Color(0xFFC62828),
+                onPressed: _clearAllGuru,
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _actionButton({
+    required String label,
+    required IconData icon,
+    required Color bgColor,
+    required Color textColor,
+    required VoidCallback onPressed,
+  }) {
+    return ElevatedButton.icon(
+      onPressed: onPressed,
+      style: ElevatedButton.styleFrom(
+        backgroundColor: bgColor,
+        foregroundColor: textColor,
+        elevation: 0,
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(10),
+        ),
+      ),
+      icon: Icon(icon, size: 18),
+      label: Text(
+        label,
+        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+      ),
+    );
+  }
+
+  Future<void> _exportExcel() async {
+    try {
+      final List<int> bytes;
+      if (_guruList.isEmpty) {
+        bytes = ExcelHelper.generateGuruTemplate();
+      } else {
+        bytes = ExcelHelper.exportGuruToExcel(_guruList);
+      }
+      saveBytes(bytes, 'Data_Guru_Ekspor.xlsx');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(_guruList.isEmpty
+              ? "Template Excel Guru berhasil diunduh (karena data kosong)"
+              : "Data Guru berhasil diekspor ke Excel"),
+          backgroundColor: Colors.green,
+        ),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Gagal mengekspor data: $e"), backgroundColor: Colors.red),
+      );
+    }
+  }
+
+  Future<void> _uploadExcel() async {
+    try {
+      FilePickerResult? result = await FilePicker.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: ['xlsx'],
+        withData: true,
+      );
+
+      if (result == null || result.files.isEmpty) return;
+
+      final file = result.files.single;
+      List<int> bytes;
+      if (kIsWeb) {
+        if (file.bytes == null) {
+          throw Exception("File bytes are null on web");
+        }
+        bytes = file.bytes!;
+      } else {
+        if (file.path == null) {
+          throw Exception("File path is null on mobile/desktop");
+        }
+        bytes = await File(file.path!).readAsBytes();
+      }
+
+      final parsedList = ExcelHelper.parseGuruExcel(bytes);
+      if (parsedList.isEmpty) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text("Tidak ada data guru yang valid di dalam file Excel"),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+        return;
+      }
+
+      if (!mounted) return;
+
+      showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text("Konfirmasi Unggah Excel"),
+          content: Text("Ditemukan ${parsedList.length} data guru. Apakah Anda yakin ingin memasukkan data ini ke sistem? Data dengan NIP yang sama akan diperbarui."),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text("BATAL"),
+            ),
+            ElevatedButton(
+              onPressed: () async {
+                Navigator.pop(context); // Close confirm dialog
+
+                // Show progress dialog
+                showDialog(
+                  context: context,
+                  barrierDismissible: false,
+                  builder: (context) => const Center(
+                    child: Card(
+                      child: Padding(
+                        padding: EdgeInsets.all(20.0),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            CircularProgressIndicator(),
+                            SizedBox(height: 16),
+                            Text("Mengimpor data guru..."),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                );
+
+                int count = 0;
+                try {
+                  for (var g in parsedList) {
+                    if (_guruList.any((x) => x.nip == g.nip)) {
+                      await _systemService.updateGuru(g);
+                    } else {
+                      await _systemService.addGuru(g);
+                    }
+                    count++;
+                  }
+
+                  if (mounted) {
+                    Navigator.pop(context); // Close progress dialog
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text("Berhasil mengimpor $count data guru"),
+                        backgroundColor: Colors.green,
+                      ),
+                    );
+                    setState(() {});
+                  }
+                } catch (e) {
+                  if (mounted) {
+                    Navigator.pop(context); // Close progress dialog
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text("Gagal mengimpor: $e"),
+                        backgroundColor: Colors.red,
+                      ),
+                    );
+                  }
+                }
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF102C57),
+                foregroundColor: Colors.white,
+              ),
+              child: const Text("IMPOR"),
+            ),
+          ],
+        ),
+      );
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("Error: $e"), backgroundColor: Colors.red),
+        );
+      }
+    }
+  }
+
+  Future<void> _clearAllGuru() async {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text("Konfirmasi Hapus Semua"),
+        content: const Text(
+          "Apakah Anda yakin ingin menghapus seluruh data guru? Tindakan ini tidak dapat dibatalkan.",
+          style: TextStyle(color: Colors.red),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text("BATAL"),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              Navigator.pop(context);
+
+              showDialog(
+                context: context,
+                barrierDismissible: false,
+                builder: (context) => const Center(
+                  child: Card(
+                    child: Padding(
+                      padding: EdgeInsets.all(20.0),
+                      child: CircularProgressIndicator(),
+                    ),
+                  ),
+                ),
+              );
+
+              try {
+                await _systemService.clearAllGuru();
+                if (mounted) {
+                  Navigator.pop(context); // Close progress
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text("Seluruh data guru berhasil dihapus"),
+                      backgroundColor: Colors.green,
+                    ),
+                  );
+                  setState(() {});
+                }
+              } catch (e) {
+                if (mounted) {
+                  Navigator.pop(context); // Close progress
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text("Gagal menghapus: $e"),
+                      backgroundColor: Colors.red,
+                    ),
+                  );
+                }
+              }
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text("HAPUS SEMUA"),
+          ),
+        ],
       ),
     );
   }

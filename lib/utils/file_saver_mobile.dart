@@ -9,3 +9,10 @@ void saveFile(String content, String fileName) async {
     filename: fileName,
   );
 }
+
+void saveBytes(List<int> bytes, String fileName) async {
+  await Printing.sharePdf(
+    bytes: Uint8List.fromList(bytes),
+    filename: fileName,
+  );
+}

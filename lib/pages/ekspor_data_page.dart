@@ -225,15 +225,15 @@ class _EksporDataPageState extends State<EksporDataPage> {
           ? _selectedPeriod
           : "${months[now.month]} ${now.year}";
 
-      csvBuilder.writeln(",ABSENSI SISWA/SISWI,,,,,,,,,,,,,,,,,,,,,,,,");
-      csvBuilder.writeln(",$schoolName,,,,,,,,,,,,,,,,,,,,,,,,");
-      csvBuilder.writeln(",Tahun Pelajaran $schoolYear,,,,,,,,,,,,,,,,,,,,,,,,");
+      csvBuilder.writeln(",ABSENSI SISWA/SISWI,,,,,,,,,,,,,,,,,,,,,,,,,");
+      csvBuilder.writeln(",$schoolName,,,,,,,,,,,,,,,,,,,,,,,,,");
+      csvBuilder.writeln(",Tahun Pelajaran $schoolYear,,,,,,,,,,,,,,,,,,,,,,,,,");
       csvBuilder.writeln(",Kelas : $kelasStr,,,,,,,,,,,,,,,,,,Bulan : $bulanStr");
       
       // Table Headers
-      csvBuilder.writeln(",No,NISN,Nama Siswa,Senin,,,Selasa,,,Rabu,,,Kamis,,,Sabtu,,,Ahad,,,Keterangan,,");
-      csvBuilder.writeln(",,,,Jam,,,Jam,,,Jam,,,Jam,,,Jam,,,Jam,,,S,I,A");
-      csvBuilder.writeln(",,,,1,2,3,1,2,3,1,2,3,1,2,3,1,2,3,1,2,3,,,");
+      csvBuilder.writeln(",No,NISN,Nama Siswa,Senin,,,Selasa,,,Rabu,,,Kamis,,,Sabtu,,,Ahad,,,Keterangan,,,,");
+      csvBuilder.writeln(",,,,Jam,,,Jam,,,Jam,,,Jam,,,Jam,,,Jam,,,H,S,I,A");
+      csvBuilder.writeln(",,,,1,2,3,1,2,3,1,2,3,1,2,3,1,2,3,1,2,3,,,,,");
 
       // Find dates for the current week (Monday to Sunday)
       final monday = now.subtract(Duration(days: now.weekday - 1));
@@ -280,8 +280,9 @@ class _EksporDataPageState extends State<EksporDataPage> {
           }
         }
 
-        // Totals for Keterangan (S, I, A)
+        // Totals for Keterangan (H, S, I, A)
         final counts = _getStudentStatusCounts(s.nama, logsToExport);
+        rowItems.add(counts["Hadir"]!.toString());
         rowItems.add(counts["Sakit"]!.toString());
         rowItems.add(counts["Izin"]!.toString());
         rowItems.add(counts["Alfa"]!.toString());
@@ -634,9 +635,9 @@ class _EksporDataPageState extends State<EksporDataPage> {
                 ? pw.Table(
                     border: pw.TableBorder.all(width: 0.5, color: PdfColors.grey),
                     columnWidths: const {
-                      0: pw.FixedColumnWidth(20),  // No
-                      1: pw.FixedColumnWidth(55),  // NISN
-                      2: pw.FixedColumnWidth(150), // Nama Siswa
+                      0: pw.FixedColumnWidth(18),  // No
+                      1: pw.FixedColumnWidth(50),  // NISN
+                      2: pw.FixedColumnWidth(130), // Nama Siswa
                       // 18 columns for days
                       3: pw.FixedColumnWidth(23), 4: pw.FixedColumnWidth(23), 5: pw.FixedColumnWidth(23),
                       6: pw.FixedColumnWidth(23), 7: pw.FixedColumnWidth(23), 8: pw.FixedColumnWidth(23),
@@ -644,8 +645,8 @@ class _EksporDataPageState extends State<EksporDataPage> {
                       12: pw.FixedColumnWidth(23), 13: pw.FixedColumnWidth(23), 14: pw.FixedColumnWidth(23),
                       15: pw.FixedColumnWidth(23), 16: pw.FixedColumnWidth(23), 17: pw.FixedColumnWidth(23),
                       18: pw.FixedColumnWidth(23), 19: pw.FixedColumnWidth(23), 20: pw.FixedColumnWidth(23),
-                      // 3 columns for Keterangan (S, I, A)
-                      21: pw.FixedColumnWidth(23), 22: pw.FixedColumnWidth(23), 23: pw.FixedColumnWidth(23),
+                      // 4 columns for Keterangan (H, S, I, A)
+                      21: pw.FixedColumnWidth(20), 22: pw.FixedColumnWidth(20), 23: pw.FixedColumnWidth(20), 24: pw.FixedColumnWidth(20),
                     },
                     children: [
                       // Header Row 1
@@ -676,6 +677,8 @@ class _EksporDataPageState extends State<EksporDataPage> {
                           _buildPdfTableHeaderCell(""),
                           _buildPdfTableHeaderCell("Keterangan", fontSize: 8),
                           _buildPdfTableHeaderCell(""),
+                          _buildPdfTableHeaderCell(""),
+                          _buildPdfTableHeaderCell(""),
                         ],
                       ),
                       // Header Row 2
@@ -703,6 +706,7 @@ class _EksporDataPageState extends State<EksporDataPage> {
                           _buildPdfTableHeaderCell(""),
                           _buildPdfTableHeaderCell("Jam", fontSize: 7),
                           _buildPdfTableHeaderCell(""),
+                          _buildPdfTableHeaderCell("H", fontSize: 7),
                           _buildPdfTableHeaderCell("S", fontSize: 7),
                           _buildPdfTableHeaderCell("I", fontSize: 7),
                           _buildPdfTableHeaderCell("A", fontSize: 7),
@@ -733,6 +737,7 @@ class _EksporDataPageState extends State<EksporDataPage> {
                           _buildPdfTableHeaderCell("1", fontSize: 7),
                           _buildPdfTableHeaderCell("2", fontSize: 7),
                           _buildPdfTableHeaderCell("3", fontSize: 7),
+                          _buildPdfTableHeaderCell(""),
                           _buildPdfTableHeaderCell(""),
                           _buildPdfTableHeaderCell(""),
                           _buildPdfTableHeaderCell(""),
@@ -793,8 +798,9 @@ class _EksporDataPageState extends State<EksporDataPage> {
                                   }
                                 }
                                 return widgets;
-                              }(),
-                              // Totals (S, I, A)
+                               }(),
+                              // Totals (H, S, I, A)
+                              _buildPdfTableCellText(counts["Hadir"]!.toString()),
                               _buildPdfTableCellText(counts["Sakit"]!.toString()),
                               _buildPdfTableCellText(counts["Izin"]!.toString()),
                               _buildPdfTableCellText(counts["Alfa"]!.toString()),
@@ -892,6 +898,7 @@ class _EksporDataPageState extends State<EksporDataPage> {
     await Printing.layoutPdf(
       onLayout: (PdfPageFormat format) async => pdf.save(),
       name: "Rekap_Absensi_${DateTime.now().millisecondsSinceEpoch}",
+      format: pageFormat,
     );
   }
 
@@ -1648,11 +1655,24 @@ class _EksporDataPageState extends State<EksporDataPage> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text("TUTUP"),
+            child: const Text("TUTUP", style: TextStyle(color: Colors.grey)),
+          ),
+          OutlinedButton.icon(
+            icon: const Icon(Icons.receipt_long, color: Color(0xFF102C57)),
+            label: const Text("SLIP RAPOR"),
+            onPressed: () {
+              Navigator.pop(context);
+              _exportIndividualSlipPDF(context, student, logs);
+            },
+            style: OutlinedButton.styleFrom(
+              side: const BorderSide(color: Color(0xFF102C57)),
+              foregroundColor: const Color(0xFF102C57),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            ),
           ),
           ElevatedButton.icon(
             icon: const Icon(Icons.picture_as_pdf),
-            label: const Text("CETAK PDF"),
+            label: const Text("LAPORAN DETAIL"),
             onPressed: () {
               Navigator.pop(context);
               _exportIndividualPDF(context, student, logs);
@@ -1684,6 +1704,232 @@ class _EksporDataPageState extends State<EksporDataPage> {
           Text(label, style: TextStyle(fontSize: 11, color: Colors.grey.shade700, fontWeight: FontWeight.w500)),
         ],
       ),
+    );
+  }
+
+  void _exportIndividualSlipPDF(BuildContext context, Siswa student, List<AttendanceLog> logsToExport) async {
+    final counts = _getStudentStatusCounts(student.nama, logsToExport);
+
+    final now = DateTime.now();
+    final months = [
+      "", "Januari", "Februari", "Maret", "April", "Mei", "Juni",
+      "Juli", "Agustus", "September", "Oktober", "November", "Desember"
+    ];
+    final tanggalCetak = "${now.day} ${months[now.month]} ${now.year}";
+    final String kepalaMadrasah = _getKepalaMadrasah(student.kelasDisplay);
+
+    pw.MemoryImage? logoImage;
+    try {
+      final logoBytes = await rootBundle.load('assets/logo_login.png');
+      logoImage = pw.MemoryImage(logoBytes.buffer.asUint8List());
+    } catch (e) {
+      // Gracefully continue
+    }
+
+    final pdf = pw.Document();
+    
+    pdf.addPage(
+      pw.Page(
+        pageFormat: PdfPageFormat.a5.landscape,
+        margin: const pw.EdgeInsets.all(24),
+        build: (pw.Context context) {
+          return pw.Column(
+            crossAxisAlignment: pw.CrossAxisAlignment.start,
+            children: [
+              // Kop Surat
+              pw.Row(
+                crossAxisAlignment: pw.CrossAxisAlignment.center,
+                children: [
+                  if (logoImage != null)
+                    pw.Container(
+                      width: 40,
+                      height: 40,
+                      margin: const pw.EdgeInsets.only(right: 12),
+                      child: pw.Image(logoImage),
+                    ),
+                  pw.Expanded(
+                    child: pw.Column(
+                      crossAxisAlignment: pw.CrossAxisAlignment.center,
+                      children: [
+                        pw.Text(
+                          _systemService.schoolName.toUpperCase(),
+                          style: pw.TextStyle(
+                            fontWeight: pw.FontWeight.bold,
+                            fontSize: 11,
+                          ),
+                          textAlign: pw.TextAlign.center,
+                        ),
+                        pw.SizedBox(height: 2),
+                        pw.Text(
+                          _systemService.schoolAddress,
+                          style: const pw.TextStyle(
+                            fontSize: 7,
+                          ),
+                          textAlign: pw.TextAlign.center,
+                        ),
+                      ],
+                    ),
+                  ),
+                  if (logoImage != null)
+                    pw.SizedBox(width: 40),
+                ],
+              ),
+              pw.SizedBox(height: 4),
+              pw.Container(height: 1.5, color: PdfColors.black),
+              pw.SizedBox(height: 10),
+
+              pw.Center(
+                child: pw.Text(
+                  "SLIP REKAPITULASI ABSENSI SISWA (UNTUK RAPOR)",
+                  style: pw.TextStyle(
+                    fontWeight: pw.FontWeight.bold,
+                    fontSize: 10,
+                  ),
+                ),
+              ),
+              pw.SizedBox(height: 10),
+
+              // Student metadata
+              pw.Row(
+                mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                children: [
+                  pw.Column(
+                    crossAxisAlignment: pw.CrossAxisAlignment.start,
+                    children: [
+                      pw.Text("Nama Siswa : ${student.nama}", style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 8)),
+                      pw.SizedBox(height: 2),
+                      pw.Text("NISN           : ${student.nisn}", style: const pw.TextStyle(fontSize: 8)),
+                    ],
+                  ),
+                  pw.Column(
+                    crossAxisAlignment: pw.CrossAxisAlignment.end,
+                    children: [
+                      pw.Text("Kelas   : ${student.kelasDisplay}", style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 8)),
+                      pw.SizedBox(height: 2),
+                      pw.Text("Periode : ${_selectedPeriod == 'Kustom' ? '$_selectedMonth $_selectedYear' : _selectedPeriod}", style: const pw.TextStyle(fontSize: 8)),
+                    ],
+                  ),
+                ],
+              ),
+              pw.SizedBox(height: 10),
+
+              // Summary Table
+              pw.Table(
+                border: pw.TableBorder.all(width: 0.5, color: PdfColors.grey),
+                columnWidths: const {
+                  0: pw.FixedColumnWidth(40),
+                  1: pw.FixedColumnWidth(150),
+                  2: pw.FixedColumnWidth(80),
+                },
+                children: [
+                  pw.TableRow(
+                    decoration: const pw.BoxDecoration(color: PdfColors.grey100),
+                    children: [
+                      _buildPdfTableHeaderCell("No", fontSize: 8),
+                      _buildPdfTableHeaderCell("Keterangan Kehadiran", fontSize: 8),
+                      _buildPdfTableHeaderCell("Jumlah (Hari)", fontSize: 8),
+                    ],
+                  ),
+                  pw.TableRow(
+                    children: [
+                      _buildPdfTableCellText("1", fontSize: 8),
+                      pw.Padding(
+                        padding: const pw.EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                        child: pw.Text("Hadir", style: const pw.TextStyle(fontSize: 8)),
+                      ),
+                      _buildPdfTableCellText("${counts["Hadir"]} Hari", fontSize: 8),
+                    ],
+                  ),
+                  pw.TableRow(
+                    children: [
+                      _buildPdfTableCellText("2", fontSize: 8),
+                      pw.Padding(
+                        padding: const pw.EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                        child: pw.Text("Sakit", style: const pw.TextStyle(fontSize: 8)),
+                      ),
+                      _buildPdfTableCellText("${counts["Sakit"]} Hari", fontSize: 8),
+                    ],
+                  ),
+                  pw.TableRow(
+                    children: [
+                      _buildPdfTableCellText("3", fontSize: 8),
+                      pw.Padding(
+                        padding: const pw.EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                        child: pw.Text("Izin", style: const pw.TextStyle(fontSize: 8)),
+                      ),
+                      _buildPdfTableCellText("${counts["Izin"]} Hari", fontSize: 8),
+                    ],
+                  ),
+                  pw.TableRow(
+                    children: [
+                      _buildPdfTableCellText("4", fontSize: 8),
+                      pw.Padding(
+                        padding: const pw.EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                        child: pw.Text("Tanpa Keterangan (Alfa)", style: const pw.TextStyle(fontSize: 8)),
+                      ),
+                      _buildPdfTableCellText("${counts["Alfa"]} Hari", fontSize: 8),
+                    ],
+                  ),
+                ],
+              ),
+              pw.Spacer(),
+
+              // Signature section
+              pw.Row(
+                mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                children: [
+                  pw.Column(
+                    crossAxisAlignment: pw.CrossAxisAlignment.center,
+                    children: [
+                      pw.Text("Wali Kelas,", style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 8)),
+                      pw.SizedBox(height: 35),
+                      pw.Container(
+                        width: 100,
+                        decoration: const pw.BoxDecoration(
+                          border: pw.Border(bottom: pw.BorderSide(width: 0.5, color: PdfColors.black)),
+                        ),
+                      ),
+                    ],
+                  ),
+                  pw.Column(
+                    crossAxisAlignment: pw.CrossAxisAlignment.center,
+                    children: [
+                      pw.Text(
+                        () {
+                          final k = student.kelasDisplay.toUpperCase();
+                          if (k.contains("MI")) {
+                            return "Madrasah Ibtidaiyah Miftahul Ulum An-Nashar, $tanggalCetak";
+                          } else if (k.contains("MTS")) {
+                            return "Madrasah Tsanawiyah Miftahul Ulum Annashar, $tanggalCetak";
+                          } else if (k.contains("MA")) {
+                            return "Madrasah Aliyah Miftahul Ulum An-Nashar, $tanggalCetak";
+                          } else {
+                            return "Miftahul Ulum An-Nashar, $tanggalCetak";
+                          }
+                        }(),
+                        style: const pw.TextStyle(fontSize: 8),
+                      ),
+                      pw.SizedBox(height: 2),
+                      pw.Text("Kepala Madrasah,", style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 8)),
+                      pw.SizedBox(height: 35),
+                      pw.Text(
+                        kepalaMadrasah,
+                        style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 8, decoration: pw.TextDecoration.underline),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ],
+          );
+        },
+      ),
+    );
+
+    await Printing.layoutPdf(
+      onLayout: (PdfPageFormat format) async => pdf.save(),
+      name: "Slip_Rapor_${student.nama.replaceAll(' ', '_')}",
+      format: PdfPageFormat.a5.landscape,
     );
   }
 
@@ -1914,6 +2160,7 @@ class _EksporDataPageState extends State<EksporDataPage> {
     await Printing.layoutPdf(
       onLayout: (PdfPageFormat format) async => pdf.save(),
       name: "Rekap_Kehadiran_${student.nama.replaceAll(' ', '_')}",
+      format: PdfPageFormat.a4,
     );
   }
 

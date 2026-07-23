@@ -22,8 +22,8 @@ class StudentService {
     SystemService().updateSiswa(siswa);
   }
 
-  Future<void> promoteSiswaClass(String kelasAsal, String kelasBaru) async {
-    await SystemService().promoteSiswaClass(kelasAsal, kelasBaru);
+  Future<void> promoteSiswaClass(List<String> nisns, String kelasBaru) async {
+    await SystemService().promoteSiswaClass(nisns, kelasBaru);
   }
 
   List<Siswa> searchSiswa(String query) {

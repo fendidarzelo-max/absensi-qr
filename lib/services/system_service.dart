@@ -825,9 +825,45 @@ class SystemService extends ChangeNotifier {
     }
   }
 
-  Future<void> promoteSiswaClass(String kelasAsal, String kelasBaru) async {
+  Future<void> clearAllSiswa() async {
+    final nisns = _siswaList.map((s) => s.nisn).toList();
+    _siswaList.clear();
+    notifyListeners();
+    _saveToPrefsFallback();
+
+    if (isFirebaseAvailable) {
+      try {
+        final firestore = FirebaseFirestore.instance;
+        final batch = firestore.batch();
+        final snap = await firestore.collection('siswa').get();
+        for (var doc in snap.docs) {
+          batch.delete(doc.reference);
+        }
+        await batch.commit();
+        await refresh();
+      } catch (e) {
+        debugPrint("Gagal hapus semua siswa Firebase: $e");
+      }
+      return;
+    }
+
+    try {
+      for (var nisn in nisns) {
+        await http.post(
+          Uri.parse('$baseUrl/delete_siswa.php'),
+          headers: {'Content-Type': 'application/json'},
+          body: jsonEncode({'nisn': nisn}),
+        );
+      }
+      refresh();
+    } catch (e) {
+      debugPrint("Gagal hapus semua siswa: $e");
+    }
+  }
+
+  Future<void> promoteSiswaClass(List<String> nisns, String kelasBaru) async {
     for (int i = 0; i < _siswaList.length; i++) {
-      if (_siswaList[i].kelas == kelasAsal) {
+      if (nisns.contains(_siswaList[i].nisn)) {
         _siswaList[i] = _siswaList[i].copyWith(kelas: kelasBaru);
       }
     }
@@ -836,13 +872,10 @@ class SystemService extends ChangeNotifier {
 
     if (isFirebaseAvailable) {
       try {
-        final querySnapshot = await FirebaseFirestore.instance
-            .collection('siswa')
-            .where('kelas', isEqualTo: kelasAsal)
-            .get();
         final batch = FirebaseFirestore.instance.batch();
-        for (var doc in querySnapshot.docs) {
-          batch.update(doc.reference, {'kelas': kelasBaru});
+        for (var nisn in nisns) {
+          final docRef = FirebaseFirestore.instance.collection('siswa').doc(nisn);
+          batch.update(docRef, {'kelas': kelasBaru});
         }
         await batch.commit();
         await refresh();
@@ -857,7 +890,7 @@ class SystemService extends ChangeNotifier {
         Uri.parse('$baseUrl/promote_siswa.php'),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({
-          'kelas_asal': kelasAsal,
+          'nisns': nisns,
           'kelas_baru': kelasBaru,
         }),
       );
@@ -949,6 +982,42 @@ class SystemService extends ChangeNotifier {
       refresh();
     } catch (e) {
       debugPrint("Gagal hapus guru: $e");
+    }
+  }
+
+  Future<void> clearAllGuru() async {
+    final nips = _guruList.map((g) => g.nip).toList();
+    _guruList.clear();
+    notifyListeners();
+    _saveToPrefsFallback();
+
+    if (isFirebaseAvailable) {
+      try {
+        final firestore = FirebaseFirestore.instance;
+        final batch = firestore.batch();
+        final snap = await firestore.collection('guru').get();
+        for (var doc in snap.docs) {
+          batch.delete(doc.reference);
+        }
+        await batch.commit();
+        await refresh();
+      } catch (e) {
+        debugPrint("Gagal hapus semua guru Firebase: $e");
+      }
+      return;
+    }
+
+    try {
+      for (var nip in nips) {
+        await http.post(
+          Uri.parse('$baseUrl/delete_guru.php'),
+          headers: {'Content-Type': 'application/json'},
+          body: jsonEncode({'nip': nip}),
+        );
+      }
+      refresh();
+    } catch (e) {
+      debugPrint("Gagal hapus semua guru: $e");
     }
   }
 
@@ -1062,6 +1131,22 @@ class SystemService extends ChangeNotifier {
     }
 
     final cleanCode = code.trim();
+
+    // Validasi apakah terdaftar di database local cache
+    if (isGuru) {
+      final exists = _guruList.any((g) => g.nip.trim() == cleanCode);
+      if (!exists) {
+        debugPrint("Guru dengan NIP $cleanCode tidak terdaftar.");
+        return false;
+      }
+    } else {
+      final exists = _siswaList.any((s) => s.nisn.trim() == cleanCode);
+      if (!exists) {
+        debugPrint("Siswa dengan NISN $cleanCode tidak terdaftar.");
+        return false;
+      }
+    }
+
     final now = DateTime.now();
     final timeStr = _formatTime(now);
     final dateStr = _formatDate(now);

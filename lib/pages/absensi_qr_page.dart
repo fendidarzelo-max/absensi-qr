@@ -118,6 +118,31 @@ class _AbsensiQRPageState extends State<AbsensiQRPage> {
   Future<void> _processScan(String code) async {
     final cleanCode = code.trim();
     
+    // Validasi apakah terdaftar di database Guru/Siswa
+    if (widget.isGuru) {
+      final exists = _systemService.guruList.any((g) => g.nip.trim() == cleanCode);
+      if (!exists) {
+        if (!mounted) return;
+        setState(() {
+          _hasScanned = true;
+          _isScanning = false;
+          _scanResult = "GAGAL!\n\nID: $cleanCode\nTidak terdaftar di database Guru.";
+        });
+        return;
+      }
+    } else {
+      final exists = _systemService.siswaList.any((s) => s.nisn.trim() == cleanCode);
+      if (!exists) {
+        if (!mounted) return;
+        setState(() {
+          _hasScanned = true;
+          _isScanning = false;
+          _scanResult = "GAGAL!\n\nID: $cleanCode\nTidak terdaftar di database Siswa.";
+        });
+        return;
+      }
+    }
+
     // Check maximum hours/sessions allowed for class before recording attendance
     if (!widget.isGuru) {
       final s = _systemService.siswaList.firstWhere(

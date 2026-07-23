@@ -27,6 +27,8 @@ class _DashboardPageState extends State<DashboardPage> {
   final SystemService _systemService = SystemService();
   int _currentMenuIndex = 0;
   bool _isGuruAttendanceUnlocked = false;
+  bool _isRekapLaporanUnlocked = false;
+  bool _isDataGuruUnlocked = false;
   late Timer _clockTimer;
   String _timeString = "";
   String _dateString = "";
@@ -157,6 +159,12 @@ class _DashboardPageState extends State<DashboardPage> {
       if (index != 2) {
         _isGuruAttendanceUnlocked = false;
       }
+      if (index != 5) {
+        _isDataGuruUnlocked = false;
+      }
+      if (index != 6) {
+        _isRekapLaporanUnlocked = false;
+      }
       _currentMenuIndex = index;
     });
   }
@@ -184,8 +192,32 @@ class _DashboardPageState extends State<DashboardPage> {
       case 4:
         return const DataSiswaPage();
       case 5:
+        if (!_isDataGuruUnlocked) {
+          return PasswordLockScreen(
+            systemService: _systemService,
+            title: "Data Guru Terkunci",
+            description: "Masukkan kata sandi Administrator untuk membuka halaman data pendidik & tenaga kependidikan.",
+            onUnlockSuccess: () {
+              setState(() {
+                _isDataGuruUnlocked = true;
+              });
+            },
+          );
+        }
         return const DataGuruPage();
       case 6:
+        if (!_isRekapLaporanUnlocked) {
+          return PasswordLockScreen(
+            systemService: _systemService,
+            title: "Rekap Laporan Terkunci",
+            description: "Masukkan kata sandi Administrator untuk membuka halaman rekap laporan absensi.",
+            onUnlockSuccess: () {
+              setState(() {
+                _isRekapLaporanUnlocked = true;
+              });
+            },
+          );
+        }
         return const EksporDataPage();
       case 7:
         return const KartuPelajarPage();
@@ -1959,11 +1991,15 @@ class _DashboardPageState extends State<DashboardPage> {
 class PasswordLockScreen extends StatefulWidget {
   final SystemService systemService;
   final VoidCallback onUnlockSuccess;
+  final String title;
+  final String description;
 
   const PasswordLockScreen({
     super.key,
     required this.systemService,
     required this.onUnlockSuccess,
+    this.title = "Absensi Guru Terkunci",
+    this.description = "Masukkan kata sandi Administrator untuk membuka halaman absensi pendidik & tenaga kependidikan.",
   });
 
   @override
@@ -2049,9 +2085,9 @@ class _PasswordLockScreenState extends State<PasswordLockScreen> {
                 ),
               ),
               const SizedBox(height: 24),
-              const Text(
-                "Absensi Guru Terkunci",
-                style: TextStyle(
+              Text(
+                widget.title,
+                style: const TextStyle(
                   fontWeight: FontWeight.bold,
                   fontSize: 20,
                   color: Color(0xFF102C57),
@@ -2059,9 +2095,9 @@ class _PasswordLockScreenState extends State<PasswordLockScreen> {
               ),
               const SizedBox(height: 8),
               Text(
-                "Masukkan kata sandi Administrator untuk membuka halaman absensi pendidik & tenaga kependidikan.",
+                widget.description,
                 textAlign: TextAlign.center,
-                style: TextStyle(
+                style: const TextStyle(
                   color: Colors.grey,
                   fontSize: 12,
                   height: 1.5,
