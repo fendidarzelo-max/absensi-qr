@@ -510,6 +510,19 @@ class _AbsensiUsbPageState extends State<AbsensiUsbPage> {
             const SizedBox(height: 16),
             const Divider(height: 1),
             const SizedBox(height: 16),
+            CircleAvatar(
+              radius: 40,
+              backgroundColor: _isSuccess == true ? const Color(0xFF102C57).withOpacity(0.1) : Colors.red.withOpacity(0.1),
+              child: Text(
+                _scannedName.isNotEmpty ? _scannedName[0].toUpperCase() : "?",
+                style: TextStyle(
+                  fontSize: 24,
+                  color: _isSuccess == true ? const Color(0xFF102C57) : Colors.red,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
             Text(
               _scannedName,
               style: const TextStyle(

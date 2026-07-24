@@ -1,3 +1,4 @@
+import 'dart:io' show File;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
@@ -21,6 +22,10 @@ class _AbsensiQRPageState extends State<AbsensiQRPage> {
   MobileScannerController? _scannerController;
   final SystemService _systemService = SystemService();
   final TextEditingController _simulateController = TextEditingController();
+  Siswa? _scannedSiswa;
+  Guru? _scannedGuru;
+  bool _scanSuccess = false;
+  String _scanErrorMsg = "";
   
   // Simulation list for ease of testing
   String? _selectedSimulateCode;
@@ -76,6 +81,10 @@ class _AbsensiQRPageState extends State<AbsensiQRPage> {
       _isScanning = true;
       _hasScanned = false;
       _scanResult = "";
+      _scannedSiswa = null;
+      _scannedGuru = null;
+      _scanSuccess = false;
+      _scanErrorMsg = "";
       _scannerController = MobileScannerController(
         detectionSpeed: DetectionSpeed.normal,
         facing: CameraFacing.back,
@@ -98,6 +107,10 @@ class _AbsensiQRPageState extends State<AbsensiQRPage> {
       _isScanning = false;
       _selectedSimulateCode = null;
       _simulateController.clear();
+      _scannedSiswa = null;
+      _scannedGuru = null;
+      _scanSuccess = false;
+      _scanErrorMsg = "";
     });
   }
 
@@ -118,37 +131,49 @@ class _AbsensiQRPageState extends State<AbsensiQRPage> {
   Future<void> _processScan(String code) async {
     final cleanCode = code.trim();
     
+    // Reset state for new scan
+    setState(() {
+      _scannedSiswa = null;
+      _scannedGuru = null;
+      _scanSuccess = false;
+      _scanErrorMsg = "";
+      _scanResult = "";
+    });
+
     // Validasi apakah terdaftar di database Guru/Siswa
     if (widget.isGuru) {
-      final exists = _systemService.guruList.any((g) => g.nip.trim() == cleanCode);
-      if (!exists) {
+      final guruIndex = _systemService.guruList.indexWhere((g) => g.nip.trim() == cleanCode);
+      if (guruIndex == -1) {
         if (!mounted) return;
         setState(() {
           _hasScanned = true;
           _isScanning = false;
+          _scanSuccess = false;
+          _scanErrorMsg = "Tidak terdaftar di database Guru.";
           _scanResult = "GAGAL!\n\nID: $cleanCode\nTidak terdaftar di database Guru.";
         });
         return;
       }
+      _scannedGuru = _systemService.guruList[guruIndex];
     } else {
-      final exists = _systemService.siswaList.any((s) => s.nisn.trim() == cleanCode);
-      if (!exists) {
+      final siswaIndex = _systemService.siswaList.indexWhere((s) => s.nisn.trim() == cleanCode);
+      if (siswaIndex == -1) {
         if (!mounted) return;
         setState(() {
           _hasScanned = true;
           _isScanning = false;
+          _scanSuccess = false;
+          _scanErrorMsg = "Tidak terdaftar di database Siswa.";
           _scanResult = "GAGAL!\n\nID: $cleanCode\nTidak terdaftar di database Siswa.";
         });
         return;
       }
+      _scannedSiswa = _systemService.siswaList[siswaIndex];
     }
 
     // Check maximum hours/sessions allowed for class before recording attendance
-    if (!widget.isGuru) {
-      final s = _systemService.siswaList.firstWhere(
-        (element) => element.nisn.trim() == cleanCode,
-        orElse: () => Siswa(nisn: cleanCode, nama: cleanCode, kelas: "", ttl: "", alamat: "", namaOrtu: "", namaIbu: "", desa: "", kecamatan: "", kabupaten: "", provinsi: "", rt: "", rw: ""),
-      );
+    if (!widget.isGuru && _scannedSiswa != null) {
+      final s = _scannedSiswa!;
       if (s.kelas.isNotEmpty) {
         final maxHours = _systemService.getMaxHoursForKelas(s.kelas);
         if (_selectedJam > maxHours) {
@@ -156,6 +181,8 @@ class _AbsensiQRPageState extends State<AbsensiQRPage> {
           setState(() {
             _hasScanned = true;
             _isScanning = false;
+            _scanSuccess = false;
+            _scanErrorMsg = "Kelas ini hanya sampai Jam Ke-$maxHours.";
             _scanResult = "GAGAL!\n\nNama: ${s.nama}\nKelas: ${s.kelasDisplay}\nKelas ini hanya sampai Jam Ke-$maxHours.";
           });
           return;
@@ -170,32 +197,270 @@ class _AbsensiQRPageState extends State<AbsensiQRPage> {
     setState(() {
       _hasScanned = true;
       _isScanning = false;
+      _scanSuccess = success;
       if (success) {
-        // Find name
-        String name = cleanCode;
         if (widget.isGuru) {
-          final g = _systemService.guruList.firstWhere(
-            (element) => element.nip.trim() == cleanCode,
-            orElse: () => Guru(nip: cleanCode, nama: cleanCode, mapel: "", kelas: "", status: ""),
-          );
-          name = g.nama;
-          _scanResult = "BERHASIL ABSEN GURU!\n\nNama: $name\nStatus: Terdaftar";
+          _scanResult = "BERHASIL ABSEN GURU!\n\nNama: ${_scannedGuru?.nama}\nStatus: Terdaftar";
         } else {
-          final s = _systemService.siswaList.firstWhere(
-            (element) => element.nisn.trim() == cleanCode,
-            orElse: () => Siswa(nisn: cleanCode, nama: cleanCode, kelas: "", ttl: "", alamat: "", namaOrtu: "", namaIbu: "", desa: "", kecamatan: "", kabupaten: "", provinsi: "", rt: "", rw: ""),
-          );
-          name = s.nama;
-          _scanResult = "BERHASIL ABSEN!\n\nNama: $name\nKelas: ${s.kelasDisplay}\nID: $cleanCode\nStatus: Terdaftar";
+          _scanResult = "BERHASIL ABSEN!\n\nNama: ${_scannedSiswa?.nama}\nKelas: ${_scannedSiswa?.kelasDisplay}\nID: $cleanCode\nStatus: Terdaftar";
         }
       } else {
         if (!_systemService.isPeripheralConnected) {
+          _scanErrorMsg = "Scanner USB Terputus.";
           _scanResult = "GAGAL!\n\nScanner USB Terputus.";
         } else {
+          _scanErrorMsg = "Tidak terdaftar di database.";
           _scanResult = "GAGAL!\n\nID: $cleanCode\nTidak terdaftar di database.";
         }
       }
     });
+  }
+
+  Widget _buildScanResultWidget() {
+    final isSuccess = _scanSuccess;
+    
+    if (isSuccess) {
+      final name = widget.isGuru ? (_scannedGuru?.nama ?? "") : (_scannedSiswa?.nama ?? "");
+      final idText = widget.isGuru ? "NIP: ${_scannedGuru?.nip}" : "NISN: ${_scannedSiswa?.nisn}";
+      
+      return Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          // Status Badge
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+            decoration: BoxDecoration(
+              color: const Color(0xFFD1FAE5),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: const Color(0xFF34D399), width: 1),
+            ),
+            child: const Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.check_circle, color: Color(0xFF059669), size: 14),
+                SizedBox(width: 4),
+                Text(
+                  "BERHASIL ABSEN",
+                  style: TextStyle(
+                    color: Color(0xFF059669),
+                    fontWeight: FontWeight.bold,
+                    fontSize: 10,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 8),
+          
+          // Photo/Avatar Frame
+          Container(
+            padding: const EdgeInsets.all(3),
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              border: Border.all(color: const Color(0xFF10B981), width: 2),
+              boxShadow: [
+                BoxShadow(
+                  color: const Color(0xFF10B981).withOpacity(0.15),
+                  blurRadius: 6,
+                  spreadRadius: 1,
+                )
+              ]
+            ),
+            child: widget.isGuru
+                ? CircleAvatar(
+                    radius: 36,
+                    backgroundColor: const Color(0xFF102C57).withOpacity(0.1),
+                    child: Text(
+                      name.isNotEmpty ? name[0].toUpperCase() : "?",
+                      style: const TextStyle(
+                        fontSize: 24,
+                        color: Color(0xFF102C57),
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  )
+                : _buildSiswaPhoto(_scannedSiswa),
+          ),
+          const SizedBox(height: 8),
+          
+          // Name and ID
+          Text(
+            name,
+            textAlign: TextAlign.center,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              fontSize: 15,
+              fontWeight: FontWeight.bold,
+              color: Color(0xFF1E293B),
+            ),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            idText,
+            style: const TextStyle(
+              fontSize: 11,
+              color: Color(0xFF64748B),
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+          const SizedBox(height: 8),
+          
+          // Details Card
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: const Color(0xFFF8FAFC),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: const Color(0xFFE2E8F0)),
+            ),
+            child: Column(
+              children: [
+                if (!widget.isGuru) ...[
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text("Kelas", style: TextStyle(color: Color(0xFF64748B), fontSize: 11)),
+                      Text(
+                        _scannedSiswa?.kelasDisplay ?? "-",
+                        style: const TextStyle(color: Color(0xFF1E293B), fontSize: 11, fontWeight: FontWeight.w600),
+                      ),
+                    ],
+                  ),
+                  const Divider(height: 8),
+                ] else ...[
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text("Jabatan", style: TextStyle(color: Color(0xFF64748B), fontSize: 11)),
+                      Text(
+                        _scannedGuru?.jabatan ?? "-",
+                        style: const TextStyle(color: Color(0xFF1E293B), fontSize: 11, fontWeight: FontWeight.w600),
+                      ),
+                    ],
+                  ),
+                  const Divider(height: 8),
+                ],
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text("Jam Ke", style: TextStyle(color: Color(0xFF64748B), fontSize: 11)),
+                    Text(
+                      "$_selectedJam",
+                      style: const TextStyle(color: Color(0xFF1E293B), fontSize: 11, fontWeight: FontWeight.w600),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ],
+      );
+    } else {
+      // Error result
+      return Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          // Error Badge
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+            decoration: BoxDecoration(
+              color: const Color(0xFFFEE2E2),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: const Color(0xFFFCA5A5), width: 1),
+            ),
+            child: const Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.error, color: Color(0xFFDC2626), size: 14),
+                SizedBox(width: 4),
+                Text(
+                  "GAGAL ABSEN",
+                  style: TextStyle(
+                    color: Color(0xFFDC2626),
+                    fontWeight: FontWeight.bold,
+                    fontSize: 10,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+          
+          // Warning Circle
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: const Color(0xFFFEF2F2),
+              shape: BoxShape.circle,
+              border: Border.all(color: const Color(0xFFFCA5A5), width: 1.5),
+            ),
+            child: const Icon(
+              Icons.warning_amber_rounded,
+              color: Color(0xFFEF4444),
+              size: 40,
+            ),
+          ),
+          const SizedBox(height: 16),
+          
+          // Error Message
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 8),
+            child: Text(
+              _scanErrorMsg.isNotEmpty ? _scanErrorMsg : "Kode QR tidak terdaftar.",
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: Color(0xFFEF4444),
+              ),
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            _scanResult.split('\n\n').last, // ID details
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              fontSize: 11,
+              color: Color(0xFF64748B),
+            ),
+          ),
+        ],
+      );
+    }
+  }
+
+  Widget _buildSiswaPhoto(Siswa? s) {
+    if (s != null && s.fotoPath != null && s.fotoPath!.isNotEmpty) {
+      try {
+        final file = File(s.fotoPath!);
+        if (file.existsSync()) {
+          return ClipOval(
+            child: Image.file(
+              file,
+              width: 72,
+              height: 72,
+              fit: BoxFit.cover,
+            ),
+          );
+        }
+      } catch (e) {
+        debugPrint("Error loading siswa photo: $e");
+      }
+    }
+    return CircleAvatar(
+      radius: 36,
+      backgroundColor: const Color(0xFF10B981).withOpacity(0.1),
+      child: Text(
+        (s?.nama.isNotEmpty == true) ? s!.nama[0].toUpperCase() : "?",
+        style: const TextStyle(
+          fontSize: 24,
+          color: Color(0xFF10B981),
+          fontWeight: FontWeight.bold,
+        ),
+      ),
+    );
   }
 
   void _showErrorSnackBar(String message) {
@@ -381,23 +646,8 @@ class _AbsensiQRPageState extends State<AbsensiQRPage> {
                     : _scanResult.isNotEmpty
                       ? Center(
                           child: Padding(
-                            padding: const EdgeInsets.all(24.0),
-                            child: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Icon(
-                                  _scanResult.contains("BERHASIL") ? Icons.check_circle : Icons.error, 
-                                  color: _scanResult.contains("BERHASIL") ? const Color(0xFF10B981) : Colors.red, 
-                                  size: 64,
-                                ),
-                                const SizedBox(height: 16),
-                                Text(
-                                  _scanResult,
-                                  textAlign: TextAlign.center,
-                                  style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
-                                ),
-                              ],
-                            ),
+                            padding: const EdgeInsets.all(16.0),
+                            child: _buildScanResultWidget(),
                           ),
                         )
                       : const Center(
